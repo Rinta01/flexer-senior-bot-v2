@@ -5,6 +5,7 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from src.database.engine import db_manager
+from src.database.models import DutyStatus
 from src.database.repositories import PoolRepository
 from src.services.user_manager import UserManager
 from src.utils.logger import setup_logging
@@ -56,8 +57,19 @@ async def pool_command(message: Message) -> None:
                 if user["last_name"]:
                     full_name += f" {user['last_name']}"
 
-                # Add status emoji
-                status = "✅" if user["completed_cycle"] else "⏳"
+                # Determine status emoji based on duty status
+                duty_status = user.get("duty_status")
+
+                if duty_status == DutyStatus.CONFIRMED:
+                    status = "✅ (дежурный на этой неделе)"
+                elif duty_status == DutyStatus.PENDING:
+                    status = "⏱️ (ожидает подтверждения)"
+                elif duty_status in (DutyStatus.DECLINED, DutyStatus.SKIPPED):
+                    status = "❌ (отказался)"
+                elif user["completed_cycle"]:
+                    status = "✅ (завершил цикл)"
+                else:
+                    status = "⏳ (ожидает очереди)"
 
                 # Format line
                 if username_part:
@@ -69,7 +81,10 @@ async def pool_command(message: Message) -> None:
                 f"📋 <b>Участники пула ({len(users)})</b>\n\n"
                 + "\n".join(user_list)
                 + "\n\n"
-                + "✅ = уже был дежурным в этом цикле\n"
+                + "<b>Статусы:</b>\n"
+                + "✅ = дежурный/завершил цикл\n"
+                + "⏱️ = ожидает подтверждения дежурства\n"
+                + "❌ = отказался от дежурства\n"
                 + "⏳ = ожидает своей очереди"
             )
 

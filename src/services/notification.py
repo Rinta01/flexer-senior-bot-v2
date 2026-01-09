@@ -1,12 +1,55 @@
 """Notification service for sending messages to users and groups."""
 
+from datetime import datetime, timedelta
+
 from aiogram import Bot
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.database.repositories import DutyRepository, UserRepository
 from src.utils.logger import setup_logging
 from src.utils.validators import format_user_mention
 
 logger = setup_logging(__name__)
+
+
+def get_week_date_range(week_number: int, year: int | None = None) -> str:
+    """Format week date range for display.
+
+    Args:
+        week_number: ISO week number
+        year: Year (defaults to current year)
+
+    Returns:
+        Formatted date range string like "13 января - 19 января"
+    """
+    if year is None:
+        year = datetime.now().year
+
+    # Get Monday of the week
+    jan_4 = datetime(year, 1, 4)  # Week 1 always contains Jan 4
+    week_1_monday = jan_4 - timedelta(days=jan_4.weekday())
+    target_monday = week_1_monday + timedelta(weeks=week_number - 1)
+    target_sunday = target_monday + timedelta(days=6)
+
+    months_ru = [
+        "января",
+        "февраля",
+        "марта",
+        "апреля",
+        "мая",
+        "июня",
+        "июля",
+        "августа",
+        "сентября",
+        "октября",
+        "ноября",
+        "декабря",
+    ]
+
+    monday_str = f"{target_monday.day} {months_ru[target_monday.month - 1]}"
+    sunday_str = f"{target_sunday.day} {months_ru[target_sunday.month - 1]}"
+
+    return f"{monday_str} - {sunday_str}"
 
 
 class NotificationService:
@@ -33,7 +76,7 @@ class NotificationService:
         assignment_id: int,
     ) -> bool:
         """
-        Announce duty assignment to group.
+        Announce duty assignment to group with confirmation buttons.
 
         Args:
             group_id: Telegram group ID
@@ -53,12 +96,29 @@ class NotificationService:
 
             # Format message
             mention = format_user_mention(user_id, user.username)
+            date_range = get_week_date_range(week_number)
             message_text = (
-                f"🎯 <b>Дежурный на неделю #{week_number}</b>\n\n"
+                f"🎯 <b>Дежурный на неделю {date_range}</b>\n\n"
                 f"Поздравляем, {mention}! 🎉\n\n"
-                f"Ты назначен дежурным на эту неделю и отвечаешь за организацию "
+                f"Ты выбран дежурным на эту неделю и отвечаешь за организацию "
                 f"мероприятия для группы.\n\n"
-                f"Удачи! 💪"
+                f"<b>Пожалуйста, подтверди или откажись:</b>"
+            )
+
+            # Create inline keyboard with confirmation buttons
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="✅ Принять",
+                            callback_data=f"duty_confirm:{assignment_id}:{user_id}",
+                        ),
+                        InlineKeyboardButton(
+                            text="❌ Отказаться",
+                            callback_data=f"duty_decline:{assignment_id}:{user_id}",
+                        ),
+                    ]
+                ]
             )
 
             # Send message
@@ -66,13 +126,17 @@ class NotificationService:
                 chat_id=group_id,
                 text=message_text,
                 parse_mode="HTML",
+                reply_markup=keyboard,
             )
 
             # Update message ID in database
+            await self.duty_repo.update_message_id(assignment_id, message.message_id)
             await self.duty_repo.mark_notification_sent(assignment_id)
             await self.duty_repo.session.commit()
 
-            logger.info(f"Announced duty for user {user_id} in group {group_id}")
+            logger.info(
+                f"Announced duty for user {user_id} in group {group_id} (assignment {assignment_id})"
+            )
             return True
 
         except Exception as e:

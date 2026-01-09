@@ -109,6 +109,12 @@ class PoolRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_pool_id(self, pool_id: int) -> DutyPool | None:
+        """Get pool by database ID."""
+        stmt = select(DutyPool).where(DutyPool.id == pool_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
 
 class UserPoolRepository:
     """Repository for UserInPool operations."""
@@ -204,15 +210,34 @@ class DutyRepository:
         return assignment
 
     async def get_current_duty(self, pool_id: int, week_number: int) -> DutyAssignment | None:
-        """Get current duty assignment for specific week."""
+        """Get confirmed duty assignment for specific week."""
+        from src.database.models import DutyStatus
+
         stmt = select(DutyAssignment).where(
             and_(
                 DutyAssignment.pool_id == pool_id,
                 DutyAssignment.week_number == week_number,
+                DutyAssignment.status == DutyStatus.CONFIRMED,
             )
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_pending_duties_for_week(
+        self, pool_id: int, week_number: int
+    ) -> list[DutyAssignment]:
+        """Get all pending duty assignments for specific week."""
+        from src.database.models import DutyStatus
+
+        stmt = select(DutyAssignment).where(
+            and_(
+                DutyAssignment.pool_id == pool_id,
+                DutyAssignment.week_number == week_number,
+                DutyAssignment.status == DutyStatus.PENDING,
+            )
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def mark_notification_sent(self, duty_id: int) -> None:
         """Mark notification as sent."""
@@ -223,6 +248,35 @@ class DutyRepository:
         if duty:
             duty.notification_sent = True
             await self.session.commit()
+
+    async def update_message_id(self, duty_id: int, message_id: int) -> None:
+        """Update message ID for duty assignment."""
+        stmt = select(DutyAssignment).where(DutyAssignment.id == duty_id)
+        result = await self.session.execute(stmt)
+        duty = result.scalar_one_or_none()
+
+        if duty:
+            duty.message_id = message_id
+            await self.session.commit()
+
+    async def update_status(self, duty_id: int, status) -> DutyAssignment | None:
+        """Update duty assignment status."""
+        stmt = select(DutyAssignment).where(DutyAssignment.id == duty_id)
+        result = await self.session.execute(stmt)
+        duty = result.scalar_one_or_none()
+
+        if duty:
+            duty.status = status
+            await self.session.commit()
+            logger.info(f"Updated duty {duty_id} status to {status.value}")
+            return duty
+        return None
+
+    async def get_by_id(self, duty_id: int) -> DutyAssignment | None:
+        """Get duty assignment by ID."""
+        stmt = select(DutyAssignment).where(DutyAssignment.id == duty_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def get_user_duties(self, user_id: int, pool_id: int) -> list[DutyAssignment]:
         """Get all duty assignments for user in pool."""

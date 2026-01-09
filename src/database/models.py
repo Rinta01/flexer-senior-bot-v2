@@ -2,9 +2,19 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, String, func
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
+import enum
+
+
+class DutyStatus(enum.Enum):
+    """Duty assignment status."""
+
+    PENDING = "pending"  # Ожидает подтверждения
+    CONFIRMED = "confirmed"  # Подтверждено
+    DECLINED = "declined"  # Отказался
+    SKIPPED = "skipped"  # Пропущено (не ответил)
 
 
 class Base(DeclarativeBase):
@@ -97,10 +107,13 @@ class DutyAssignment(Base):
     cycle_number: Mapped[int] = mapped_column(Integer, default=1, index=True)
     message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notification_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    status: Mapped[DutyStatus] = mapped_column(
+        Enum(DutyStatus), default=DutyStatus.PENDING, nullable=False, index=True
+    )
 
     # Relationships
     user: Mapped[TelegramUser] = relationship(back_populates="duties")
     pool: Mapped[DutyPool] = relationship(back_populates="duty_assignments")
 
     def __repr__(self) -> str:
-        return f"<DutyAssignment(user_id={self.user_id}, week={self.week_number})>"
+        return f"<DutyAssignment(user_id={self.user_id}, week={self.week_number}, status={self.status.value})>"

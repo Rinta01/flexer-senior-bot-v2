@@ -85,18 +85,29 @@ class UserManager:
 
     async def get_pool_users(self, pool_id: int) -> list:
         """
-        Get list of all users in pool with their details.
+        Get list of all users in pool with their details and duty status.
 
         Args:
             pool_id: Pool ID
 
         Returns:
-            List of user dictionaries with details
+            List of user dictionaries with details and duty status
         """
+        from datetime import datetime
+        from src.database.models import DutyStatus
+        from src.database.repositories import DutyRepository
+
         users_in_pool = await self.pool_repo.get_active_users(pool_id)
         logger.info(
             f"get_pool_users: found {len(users_in_pool)} users_in_pool for pool_id={pool_id}"
         )
+
+        # Get current week number
+        current_week = datetime.now().isocalendar()[1]
+
+        # Get duty repository to check current week assignments
+        duty_repo = DutyRepository(self.session)
+
         result = []
 
         for user_in_pool in users_in_pool:
@@ -104,6 +115,25 @@ class UserManager:
             user = await self.user_repo.get_by_id(user_in_pool.user_id)
             if user:
                 logger.debug(f"Found user: {user.username or user.user_id}")
+
+                # Check if user has pending/confirmed duty this week
+                duty_status = None
+                from sqlalchemy import and_, select
+                from src.database.models import DutyAssignment
+
+                stmt = select(DutyAssignment).where(
+                    and_(
+                        DutyAssignment.pool_id == pool_id,
+                        DutyAssignment.user_id == user.user_id,
+                        DutyAssignment.week_number == current_week,
+                    )
+                )
+                duty_result = await self.session.execute(stmt)
+                duty_assignment = duty_result.scalar_one_or_none()
+
+                if duty_assignment:
+                    duty_status = duty_assignment.status
+
                 result.append(
                     {
                         "user_id": user.user_id,
@@ -111,6 +141,7 @@ class UserManager:
                         "last_name": user.last_name,
                         "username": user.username,
                         "completed_cycle": user_in_pool.has_completed_cycle,
+                        "duty_status": duty_status,
                     }
                 )
             else:

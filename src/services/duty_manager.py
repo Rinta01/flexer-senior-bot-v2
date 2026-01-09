@@ -41,8 +41,8 @@ class DutyManager:
             Dict with selected user info or None if no users available
         """
         try:
-            # Get pool
-            pool = await self.pool_repo.get_by_id(pool_id)
+            # Get pool by database ID
+            pool = await self.pool_repo.get_by_pool_id(pool_id)
             if not pool:
                 logger.error(f"Pool {pool_id} not found")
                 return None
@@ -51,18 +51,27 @@ class DutyManager:
             current_date = datetime.now()
             week_number = current_date.isocalendar()[1]
 
-            # Check if already assigned for this week
+            # Check if already confirmed for this week
             existing = await self.duty_repo.get_current_duty(pool_id, week_number)
             if existing:
-                logger.info(f"Duty already assigned for pool {pool_id}, week {week_number}")
+                logger.info(f"Duty already confirmed for pool {pool_id}, week {week_number}")
                 return {
                     "user_id": existing.user_id,
                     "week_number": week_number,
                     "already_assigned": True,
                 }
 
+            # Get users with pending assignments for this week
+            pending_duties = await self.duty_repo.get_pending_duties_for_week(pool_id, week_number)
+            pending_user_ids = {duty.user_id for duty in pending_duties}
+
             # Get available users (not completed current cycle)
             available_users = await self.user_pool_repo.get_users_not_in_cycle(pool_id)
+
+            # Filter out users with pending assignments
+            available_users = [
+                user for user in available_users if user.user_id not in pending_user_ids
+            ]
 
             if not available_users:
                 logger.warning(f"No available users in pool {pool_id}, resetting cycle")
@@ -72,11 +81,24 @@ class DutyManager:
                     user.has_completed_cycle = False
                 await self.session.commit()
 
-                available_users = all_users
+                # Filter out users with pending assignments again
+                available_users = [
+                    user for user in all_users if user.user_id not in pending_user_ids
+                ]
 
             if not available_users:
-                logger.error(f"No users in pool {pool_id}")
-                return None
+                if pending_user_ids:
+                    logger.info(
+                        f"All users in pool {pool_id} have pending assignments for week {week_number}"
+                    )
+                    return {
+                        "error": "all_pending",
+                        "pending_duties": pending_duties,  # Return pending duties for re-announcement
+                        "week_number": week_number,
+                    }
+                else:
+                    logger.error(f"No users in pool {pool_id}")
+                    return None
 
             # Select random user
             selected_user_in_pool = random.choice(available_users)
