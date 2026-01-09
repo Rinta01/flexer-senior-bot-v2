@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 from src.config import settings
 from src.database.engine import db_manager
 from src.database.repositories import PoolRepository
-from src.handlers import duty, duty_callbacks, force_pick, join, leave, pool, start
+from src.handlers import activity, duty_callbacks, force_pick, help, join, leave, pool, start
 from src.middlewares.logging import LoggingMiddleware
 from src.utils.logger import setup_logging
 from src.services.duty_selector import select_and_announce_duty
@@ -44,8 +44,9 @@ class FlexerBot:
         self.dp.include_router(join.router)
         self.dp.include_router(leave.router)
         self.dp.include_router(pool.router)
-        self.dp.include_router(duty.router)
         self.dp.include_router(force_pick.router)
+        self.dp.include_router(activity.router)  # Activity management
+        self.dp.include_router(help.router)  # Help command
         self.dp.include_router(duty_callbacks.router)  # Callback handlers
 
     def setup_middleware(self) -> None:
@@ -161,8 +162,11 @@ class FlexerBot:
             BotCommand(command="join", description="Присоединиться к пулу"),
             BotCommand(command="leave", description="Выйти из пула"),
             BotCommand(command="pool", description="Список участников пула"),
-            BotCommand(command="duty", description="Текущий дежурный"),
+            BotCommand(command="activity", description="Дежурный и активность недели"),
             BotCommand(command="force_pick", description="Выбрать дежурного вручную"),
+            BotCommand(
+                command="set_activity", description="Установить активность (только дежурный)"
+            ),
             BotCommand(command="help", description="Полная справка"),
         ]
 

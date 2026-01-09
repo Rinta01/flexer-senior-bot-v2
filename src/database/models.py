@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, String, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
 import enum
@@ -110,6 +110,14 @@ class DutyAssignment(Base):
     status: Mapped[DutyStatus] = mapped_column(
         Enum(DutyStatus), default=DutyStatus.PENDING, nullable=False, index=True
     )
+
+    # Activity details (set by confirmed duty)
+    activity_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    activity_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    activity_datetime: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    activity_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     user: Mapped[TelegramUser] = relationship(back_populates="duties")

@@ -1,5 +1,6 @@
 """Data access layer - repositories for database operations."""
 
+from datetime import datetime
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -234,6 +235,17 @@ class DutyRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_duty_for_week(self, pool_id: int, week_number: int) -> DutyAssignment | None:
+        """Get duty assignment for specific week (any status)."""
+        stmt = select(DutyAssignment).where(
+            and_(
+                DutyAssignment.pool_id == pool_id,
+                DutyAssignment.week_number == week_number,
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_pending_duties_for_week(
         self, pool_id: int, week_number: int
     ) -> list[DutyAssignment]:
@@ -286,6 +298,68 @@ class DutyRepository:
     async def get_by_id(self, duty_id: int) -> DutyAssignment | None:
         """Get duty assignment by ID."""
         stmt = select(DutyAssignment).where(DutyAssignment.id == duty_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_activity(
+        self, duty_id: int, title: str, description: str, activity_datetime: datetime
+    ) -> DutyAssignment | None:
+        """Update activity details for duty assignment."""
+        from datetime import datetime
+
+        stmt = select(DutyAssignment).where(DutyAssignment.id == duty_id)
+        result = await self.session.execute(stmt)
+        duty = result.scalar_one_or_none()
+
+        if duty:
+            duty.activity_title = title
+            duty.activity_description = description
+            duty.activity_datetime = activity_datetime
+            duty.activity_set_at = datetime.now()
+            await self.session.commit()
+            logger.info(f"Updated activity for duty {duty_id}: {title}")
+            return duty
+        return None
+
+    async def get_current_confirmed_duty(
+        self, pool_id: int, week_number: int
+    ) -> DutyAssignment | None:
+        """Get current confirmed duty assignment for pool and week."""
+        from src.database.models import DutyStatus
+
+        stmt = select(DutyAssignment).where(
+            and_(
+                DutyAssignment.pool_id == pool_id,
+                DutyAssignment.week_number == week_number,
+                DutyAssignment.status == DutyStatus.CONFIRMED,
+            )
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_current_confirmed_duty_by_group(self, group_id: int) -> DutyAssignment | None:
+        """Get current confirmed duty assignment for group."""
+        from src.database.models import DutyStatus
+        from datetime import date
+
+        current_week = date.today().isocalendar()[1]
+
+        # Сначала получаем pool_id для группы
+        pool_stmt = select(DutyPool.id).where(DutyPool.group_id == group_id)
+        pool_result = await self.session.execute(pool_stmt)
+        pool_id = pool_result.scalar_one_or_none()
+
+        if not pool_id:
+            return None
+
+        # Теперь получаем подтвержденного дежурного
+        stmt = select(DutyAssignment).where(
+            and_(
+                DutyAssignment.pool_id == pool_id,
+                DutyAssignment.week_number == current_week,
+                DutyAssignment.status == DutyStatus.CONFIRMED,
+            )
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
