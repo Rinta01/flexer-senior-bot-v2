@@ -115,6 +115,17 @@ class PoolRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_all_pools(self) -> list[DutyPool]:
+        """
+        Get all duty pools.
+
+        Returns:
+            List of all DutyPool instances
+        """
+        stmt = select(DutyPool)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
 
 class UserPoolRepository:
     """Repository for UserInPool operations."""

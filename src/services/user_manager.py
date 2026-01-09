@@ -118,15 +118,20 @@ class UserManager:
 
                 # Check if user has pending/confirmed duty this week
                 duty_status = None
-                from sqlalchemy import and_, select
+                from sqlalchemy import and_, desc, select
                 from src.database.models import DutyAssignment
 
-                stmt = select(DutyAssignment).where(
-                    and_(
-                        DutyAssignment.pool_id == pool_id,
-                        DutyAssignment.user_id == user.user_id,
-                        DutyAssignment.week_number == current_week,
+                stmt = (
+                    select(DutyAssignment)
+                    .where(
+                        and_(
+                            DutyAssignment.pool_id == pool_id,
+                            DutyAssignment.user_id == user.user_id,
+                            DutyAssignment.week_number == current_week,
+                        )
                     )
+                    .order_by(desc(DutyAssignment.id))
+                    .limit(1)
                 )
                 duty_result = await self.session.execute(stmt)
                 duty_assignment = duty_result.scalar_one_or_none()

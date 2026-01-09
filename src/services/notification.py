@@ -33,6 +33,7 @@ class NotificationService:
         user_id: int,
         week_number: int,
         assignment_id: int,
+        is_automatic: bool = False,
     ) -> bool:
         """
         Announce duty assignment to group with confirmation buttons.
@@ -42,6 +43,7 @@ class NotificationService:
             user_id: User ID of selected duty
             week_number: Week number
             assignment_id: Duty assignment ID
+            is_automatic: Whether this is automatic weekly selection
 
         Returns:
             True if successful
@@ -56,7 +58,14 @@ class NotificationService:
             # Format message
             mention = format_user_mention(user_id, user.username)
             date_range = get_week_date_range(week_number)
+
+            # Add automatic selection prefix if needed
+            auto_prefix = ""
+            if is_automatic:
+                auto_prefix = "⏰ <b>Время снова выбирать следующего дежурного!</b>\n\n"
+
             message_text = (
+                f"{auto_prefix}"
                 f"🎯 <b>Дежурный на неделю {date_range}</b>\n\n"
                 f"Поздравляем, {mention}! 🎉\n\n"
                 f"Ты выбран дежурным на эту неделю и отвечаешь за организацию "

@@ -12,9 +12,11 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 
 from src.config import settings
 from src.database.engine import db_manager
+from src.database.repositories import PoolRepository
 from src.handlers import duty, duty_callbacks, force_pick, join, leave, pool, start
 from src.middlewares.logging import LoggingMiddleware
 from src.utils.logger import setup_logging
+from src.services.duty_selector import select_and_announce_duty
 
 logger = setup_logging(__name__)
 
@@ -78,12 +80,63 @@ class FlexerBot:
         logger.info("Running weekly duty selection job...")
 
         try:
-            # This would need to iterate through all active pools
-            # For now, placeholder for future enhancement
-            logger.info("Weekly duty job completed")
+            async with db_manager.async_session() as session:
+                pool_repo = PoolRepository(session)
+                pools = await pool_repo.get_all_pools()
+
+                if not pools:
+                    logger.info("No pools found for weekly duty selection")
+                    return
+
+                logger.info(f"Processing {len(pools)} pools for weekly duty selection")
+
+                successful_selections = 0
+                skipped_selections = 0
+                failed_selections = 0
+
+                for pool in pools:
+                    try:
+                        logger.info(
+                            f"Auto-selecting duty for pool {pool.id} "
+                            f"(group {pool.group_id}, '{pool.group_title}')"
+                        )
+
+                        # Use shared duty selection logic
+                        result = await select_and_announce_duty(
+                            session=session,
+                            bot=self.bot,
+                            pool_id=pool.id,
+                            group_id=pool.group_id,
+                            is_automatic=True,
+                        )
+
+                        if result["success"]:
+                            # Check if it was actually assigned or just skipped
+                            if result["result"] and result["result"].get("error") == "all_pending":
+                                skipped_selections += 1
+                            elif result["result"] and result["result"].get("already_assigned"):
+                                skipped_selections += 1
+                            else:
+                                successful_selections += 1
+                        else:
+                            failed_selections += 1
+
+                    except Exception as e:
+                        logger.error(
+                            f"Error selecting duty for pool {pool.id} (group {pool.group_id}): {e}",
+                            exc_info=True,
+                        )
+                        failed_selections += 1
+                        continue
+
+                logger.info(
+                    f"Weekly duty job completed: {successful_selections} successful, "
+                    f"{skipped_selections} skipped, {failed_selections} failed "
+                    f"out of {len(pools)} pools"
+                )
 
         except Exception as e:
-            logger.error(f"Error in weekly_duty_job: {e}")
+            logger.error(f"Error in weekly_duty_job: {e}", exc_info=True)
 
     @staticmethod
     def get_weekday_name(day: int) -> str:
