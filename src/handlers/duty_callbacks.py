@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message
 from src.database.engine import db_manager
 from src.database.models import DutyStatus
 from src.database.repositories import DutyRepository, UserRepository
-from src.services.notification import get_week_date_range
+from src.utils.formatters import get_week_date_range
 from src.utils.logger import setup_logging
 from src.utils.validators import format_user_mention
 

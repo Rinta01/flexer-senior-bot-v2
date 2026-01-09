@@ -467,13 +467,14 @@ alembic history
 ### Прямой доступ к БД
 
 ```bash
-# Подключиться к PostgreSQL
-psql -d flexer_senior_db -U postgres
+# Подключиться к SQLite
+sqlite3 flexer_senior.db
 
 # Полезные команды
-\dt                    # List tables
-\d table_name          # Describe table
-SELECT * FROM users;   # Query
+.tables                # List tables
+.schema table_name     # Describe table
+SELECT * FROM telegram_users;   # Query
+.quit                  # Exit
 ```
 
 ---

@@ -9,7 +9,6 @@ from src.database.models import DutyStatus
 from src.database.repositories import PoolRepository
 from src.services.user_manager import UserManager
 from src.utils.logger import setup_logging
-from src.utils.validators import format_user_mention
 
 logger = setup_logging(__name__)
 

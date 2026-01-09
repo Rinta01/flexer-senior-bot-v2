@@ -163,7 +163,7 @@ class UserPoolRepository:
             select(UserInPool).where(UserInPool.pool_id == pool_id).order_by(UserInPool.joined_at)
         )
         result = await self.session.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
     async def get_users_not_in_cycle(self, pool_id: int) -> list[UserInPool]:
         """Get users who haven't completed current cycle."""
@@ -178,7 +178,7 @@ class UserPoolRepository:
             .order_by(UserInPool.joined_at)
         )
         result = await self.session.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
 
 
 class DutyRepository:
@@ -291,4 +291,4 @@ class DutyRepository:
             .order_by(DutyAssignment.assignment_date)
         )
         result = await self.session.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())

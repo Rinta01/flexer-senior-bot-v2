@@ -7,6 +7,7 @@ from aiogram.types import Message
 from src.database.engine import db_manager
 from src.database.repositories import PoolRepository, UserRepository
 from src.services.duty_manager import DutyManager
+from src.utils.formatters import get_schedule_description
 from src.utils.logger import setup_logging
 from src.utils.validators import format_user_mention
 
@@ -59,6 +60,7 @@ async def duty_command(message: Message) -> None:
 @router.message(Command("help"))
 async def help_command(message: Message) -> None:
     """Handle /help command - show help."""
+    schedule = get_schedule_description()
     help_text = (
         "<b>📚 Справка по командам</b>\n\n"
         "<b>/join</b> - Присоединиться к пулу дежурных\n"
@@ -68,7 +70,7 @@ async def help_command(message: Message) -> None:
         "<b>/duty</b> - Показать текущего дежурного\n"
         "Узнайте, кто дежурит на этой неделе.\n\n"
         "<b>ℹ️ Как это работает</b>\n"
-        "• Каждую неделю бот выбирает одного дежурного\n"
+        f"• {schedule.capitalize()} бот выбирает одного дежурного\n"
         "• Дежурного выбирают случайно из активных участников\n"
         "• Дежурный не повторяется, пока все не побывают\n"
         "• После завершения цикла начинается новый раунд\n\n"

@@ -333,9 +333,11 @@ LOG_LEVEL=DEBUG python -m src.bot
 ### Check database state
 
 ```bash
-psql -d flexer_senior_db -U postgres
+sqlite3 flexer_senior.db
+.tables
 SELECT * FROM telegram_users;
 SELECT * FROM duty_assignments;
+.quit
 ```
 
 ### Run with debugger

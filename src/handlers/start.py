@@ -4,6 +4,7 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
+from src.utils.formatters import get_schedule_description
 from src.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
@@ -15,6 +16,7 @@ router = Router()
 async def start_command(message: Message) -> None:
     """Handle /start command."""
     try:
+        schedule = get_schedule_description()
         welcome_text = (
             "👋 Добро пожаловать в Флексер старший!\n\n"
             "Я помогу организовать ротацию дежурных в группе. 🎯\n\n"
@@ -25,6 +27,7 @@ async def start_command(message: Message) -> None:
             "/duty - узнать текущего дежурного\n"
             "/force_pick - выбрать дежурного вручную\n"
             "/help - полная справка\n\n"
+            f"⏰ <b>Автовыбор дежурного:</b> {schedule}\n\n"
             "Давайте начнём! 💪"
         )
 
@@ -41,6 +44,7 @@ async def start_command(message: Message) -> None:
 async def help_command(message: Message) -> None:
     """Handle /help command."""
     try:
+        schedule = get_schedule_description()
         help_text = (
             "📖 <b>Справка по Флексеру старшему</b>\n\n"
             "<b>Команды:</b>\n\n"
@@ -53,7 +57,7 @@ async def help_command(message: Message) -> None:
             "/help - показать эту справку\n\n"
             "<b>Как это работает:</b>\n"
             "1️⃣ Участники присоединяются через /join\n"
-            "2️⃣ Бот автоматически выбирает дежурного каждую неделю\n"
+            f"2️⃣ Бот автоматически выбирает дежурного {schedule}\n"
             "3️⃣ Дежурный должен подтвердить или отказаться\n"
             "4️⃣ Никто не повторяется, пока все не побывают дежурными\n"
             "5️⃣ После полного цикла ротация начинается заново\n\n"

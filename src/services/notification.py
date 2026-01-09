@@ -1,55 +1,14 @@
 """Notification service for sending messages to users and groups."""
 
-from datetime import datetime, timedelta
-
 from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.database.repositories import DutyRepository, UserRepository
+from src.utils.formatters import get_week_date_range
 from src.utils.logger import setup_logging
 from src.utils.validators import format_user_mention
 
 logger = setup_logging(__name__)
-
-
-def get_week_date_range(week_number: int, year: int | None = None) -> str:
-    """Format week date range for display.
-
-    Args:
-        week_number: ISO week number
-        year: Year (defaults to current year)
-
-    Returns:
-        Formatted date range string like "13 января - 19 января"
-    """
-    if year is None:
-        year = datetime.now().year
-
-    # Get Monday of the week
-    jan_4 = datetime(year, 1, 4)  # Week 1 always contains Jan 4
-    week_1_monday = jan_4 - timedelta(days=jan_4.weekday())
-    target_monday = week_1_monday + timedelta(weeks=week_number - 1)
-    target_sunday = target_monday + timedelta(days=6)
-
-    months_ru = [
-        "января",
-        "февраля",
-        "марта",
-        "апреля",
-        "мая",
-        "июня",
-        "июля",
-        "августа",
-        "сентября",
-        "октября",
-        "ноября",
-        "декабря",
-    ]
-
-    monday_str = f"{target_monday.day} {months_ru[target_monday.month - 1]}"
-    sunday_str = f"{target_sunday.day} {months_ru[target_sunday.month - 1]}"
-
-    return f"{monday_str} - {sunday_str}"
 
 
 class NotificationService:
