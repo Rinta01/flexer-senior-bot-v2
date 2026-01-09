@@ -2,8 +2,7 @@
 
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.config import settings
 from src.database.models import Base
@@ -24,7 +23,7 @@ class DatabaseManager:
             echo=settings.DATABASE_ECHO,
             future=True,
         )
-        self.async_session = sessionmaker(
+        self.async_session = async_sessionmaker(
             self.engine,
             class_=AsyncSession,
             expire_on_commit=False,

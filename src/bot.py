@@ -12,7 +12,7 @@ from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTyp
 
 from src.config import settings
 from src.database.engine import db_manager
-from src.handlers import duty, join, leave, start
+from src.handlers import duty, join, leave, pool, start
 from src.middlewares.logging import LoggingMiddleware
 from src.utils.logger import setup_logging
 
@@ -41,6 +41,7 @@ class FlexerBot:
         self.dp.include_router(start.router)
         self.dp.include_router(join.router)
         self.dp.include_router(leave.router)
+        self.dp.include_router(pool.router)
         self.dp.include_router(duty.router)
 
     def setup_middleware(self) -> None:
@@ -98,16 +99,24 @@ class FlexerBot:
 
     async def set_default_commands(self) -> None:
         """Set bot default commands."""
+        from aiogram.types import BotCommandScopeAllGroupChats, BotCommandScopeDefault
+
         commands = [
             BotCommand(command="start", description="Показать справку"),
             BotCommand(command="join", description="Присоединиться к пулу"),
             BotCommand(command="leave", description="Выйти из пула"),
+            BotCommand(command="pool", description="Список участников пула"),
             BotCommand(command="duty", description="Текущий дежурный"),
             BotCommand(command="help", description="Полная справка"),
         ]
 
-        await self.bot.set_my_commands(commands)
-        logger.info("Set default commands")
+        # Set commands for private chats
+        await self.bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+
+        # Set commands for all group chats
+        await self.bot.set_my_commands(commands, scope=BotCommandScopeAllGroupChats())
+
+        logger.info("Set default commands for private and group chats")
 
     async def startup(self) -> None:
         """Bot startup routine."""

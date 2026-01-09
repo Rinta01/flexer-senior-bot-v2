@@ -83,6 +83,42 @@ class UserManager:
         users = await self.pool_repo.get_active_users(pool_id)
         return len(users)
 
+    async def get_pool_users(self, pool_id: int) -> list:
+        """
+        Get list of all users in pool with their details.
+
+        Args:
+            pool_id: Pool ID
+
+        Returns:
+            List of user dictionaries with details
+        """
+        users_in_pool = await self.pool_repo.get_active_users(pool_id)
+        logger.info(
+            f"get_pool_users: found {len(users_in_pool)} users_in_pool for pool_id={pool_id}"
+        )
+        result = []
+
+        for user_in_pool in users_in_pool:
+            logger.debug(f"Processing user_in_pool: user_id={user_in_pool.user_id}")
+            user = await self.user_repo.get_by_id(user_in_pool.user_id)
+            if user:
+                logger.debug(f"Found user: {user.username or user.user_id}")
+                result.append(
+                    {
+                        "user_id": user.user_id,
+                        "first_name": user.first_name,
+                        "last_name": user.last_name,
+                        "username": user.username,
+                        "completed_cycle": user_in_pool.has_completed_cycle,
+                    }
+                )
+            else:
+                logger.warning(f"User {user_in_pool.user_id} not found in telegram_users table")
+
+        logger.info(f"get_pool_users: returning {len(result)} users")
+        return result
+
     async def get_available_users(self, pool_id: int) -> list:
         """Get users who can be selected for duty (not completed cycle)."""
         users = await self.pool_repo.get_users_not_in_cycle(pool_id)
