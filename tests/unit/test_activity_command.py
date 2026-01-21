@@ -2,7 +2,6 @@
 
 import pytest
 from unittest.mock import AsyncMock, patch
-from datetime import date
 
 from src.handlers.activity import show_activity_command
 from src.database.models import DutyStatus
