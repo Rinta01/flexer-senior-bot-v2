@@ -257,11 +257,15 @@ class DutyRepository:
         # In future, we can add a year column to the model
         from datetime import datetime
 
-        stmt = select(DutyAssignment).where(
-            and_(
-                DutyAssignment.pool_id == pool_id,
-                DutyAssignment.week_number == week_number,
+        stmt = (
+            select(DutyAssignment)
+            .where(
+                and_(
+                    DutyAssignment.pool_id == pool_id,
+                    DutyAssignment.week_number == week_number,
+                )
             )
+            .execution_options(populate_existing=True)
         )
         result = await self.session.execute(stmt)
         duties = list(result.scalars().all())
@@ -322,9 +326,10 @@ class DutyRepository:
         duty = result.scalar_one_or_none()
 
         if duty:
+            old_status = duty.status
             duty.status = status
             await self.session.commit()
-            logger.info(f"Updated duty {duty_id} status to {status.value}")
+            logger.info(f"Updated duty {duty_id} status: {old_status.value} → {status.value}")
             return duty
         return None
 

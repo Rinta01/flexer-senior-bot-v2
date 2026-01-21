@@ -16,10 +16,10 @@ router = Router()
 async def start_command(message: Message) -> None:
     """Handle /start command."""
     try:
-        schedule = get_schedule_description()
+        # schedule = get_schedule_description()
         welcome_text = (
             "👋 Здарова, машины! Я Флексер старший!\n\n"
-            "Я помогу организовать ротацию дежурных в группе. 🎯\n\n"
+            "Я помогу вам сохранить дружбу и жить разнообразно 🎯\n\n"
             "<b>Основные команды:</b>\n"
             "/join - присоединиться к пулу дежурных\n"
             "/leave - выйти из пула дежурных\n"
@@ -28,8 +28,7 @@ async def start_command(message: Message) -> None:
             "/set_activity - установить активность (только дежурный)\n"
             "/force_pick - выбрать дежурного вручную\n"
             "/help - полная справка\n\n"
-            f"⏰ <b>Автовыбор дежурного:</b> {schedule}\n\n"
-            "Давайте начнём! 💪"
+            # f"⏰ <b>Автовыбор дежурного:</b> {schedule}\n\n"
         )
 
         await message.answer(welcome_text, parse_mode="HTML")
@@ -39,6 +38,3 @@ async def start_command(message: Message) -> None:
     except Exception as e:
         logger.error(f"Error in start_command: {e}")
         await message.answer("❌ Произошла ошибка. Пожалуйста, попробуйте позже.")
-
-
-# Команда /help перенесена в отдельный файл handlers/help.py

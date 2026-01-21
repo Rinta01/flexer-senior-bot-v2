@@ -37,9 +37,10 @@ def get_week_date_range(week_number: int, year: int | None = None) -> str:
     if year is None:
         year = datetime.now().year
 
-    # Get Monday of the week
+    # Get Monday of the week using ISO calendar
+    # ISO week 1 is the week with the first Thursday of the year
     jan_4 = datetime(year, 1, 4)  # Week 1 always contains Jan 4
-    week_1_monday = jan_4 - timedelta(days=jan_4.weekday())
+    week_1_monday = jan_4 - timedelta(days=jan_4.weekday())  # Monday of week 1
     target_monday = week_1_monday + timedelta(weeks=week_number - 1)
     target_sunday = target_monday + timedelta(days=6)
 

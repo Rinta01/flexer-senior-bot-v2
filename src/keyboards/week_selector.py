@@ -18,18 +18,15 @@ def get_week_start_end(year: int, week: int) -> tuple[datetime, datetime]:
     Returns:
         Tuple of (start_date, end_date) for the week
     """
-    # Get the first day of the year
-    jan_first = datetime(year, 1, 1)
+    # ISO week 1 is the week containing the first Thursday of the year
+    # This means week 1 contains January 4th
+    jan_4 = datetime(year, 1, 4)
 
-    # Find the first Monday of the ISO year
-    # ISO weeks start on Monday
-    days_to_monday = (7 - jan_first.weekday()) % 7
-    if jan_first.weekday() > 3:  # If Jan 1 is Thu-Sun, week 1 starts next Monday
-        days_to_monday += 7
+    # Get Monday of week 1 (jan_4 is always in week 1)
+    week_1_monday = jan_4 - timedelta(days=jan_4.weekday())
 
-    # Calculate the start of the requested week
-    first_monday = jan_first + timedelta(days=days_to_monday)
-    week_start = first_monday + timedelta(weeks=week - 1)
+    # Calculate the Monday of the requested week
+    week_start = week_1_monday + timedelta(weeks=week - 1)
     week_end = week_start + timedelta(days=6)
 
     return week_start, week_end

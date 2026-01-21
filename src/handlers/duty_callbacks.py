@@ -53,7 +53,12 @@ async def duty_confirm_callback(callback: CallbackQuery) -> None:
                 return
 
             # Update status to confirmed
+            logger.info(
+                f"CONFIRMING duty assignment {assignment_id}: user={duty.user_id}, "
+                f"week={duty.week_number}, current_status={duty.status.value}"
+            )
             await duty_repo.update_status(assignment_id, DutyStatus.CONFIRMED)
+            logger.info(f"Successfully CONFIRMED duty assignment {assignment_id}")
 
             # Get user info
             user = await user_repo.get_by_id(duty.user_id)
@@ -119,7 +124,14 @@ async def duty_decline_callback(callback: CallbackQuery) -> None:
                 return
 
             # Update status to skipped (user declined)
+            logger.info(
+                f"DECLINING duty assignment {assignment_id}: user={duty.user_id}, "
+                f"week={duty.week_number}, current_status={duty.status.value}"
+            )
             await duty_repo.update_status(assignment_id, DutyStatus.SKIPPED)
+            logger.info(
+                f"Successfully DECLINED duty assignment {assignment_id} - status set to SKIPPED"
+            )
 
             # Get user info
             user = await user_repo.get_by_id(duty.user_id)

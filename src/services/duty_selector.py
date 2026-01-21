@@ -82,6 +82,7 @@ async def select_and_announce_duty(
                         user_id=duty.user_id,
                         week_number=result["week_number"],
                         assignment_id=duty.id,
+                        year=None,  # Use current year
                     )
                     if success:
                         re_announced_count += 1
@@ -121,6 +122,7 @@ async def select_and_announce_duty(
             week_number=result["week_number"],
             assignment_id=result["assignment_id"],
             is_automatic=is_automatic,
+            year=None,  # Use current year
         )
 
         if success:

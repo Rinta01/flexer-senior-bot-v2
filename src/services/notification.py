@@ -34,6 +34,7 @@ class NotificationService:
         week_number: int,
         assignment_id: int,
         is_automatic: bool = False,
+        year: int | None = None,
     ) -> bool:
         """
         Announce duty assignment to group with confirmation buttons.
@@ -44,6 +45,7 @@ class NotificationService:
             week_number: Week number
             assignment_id: Duty assignment ID
             is_automatic: Whether this is automatic weekly selection
+            year: Year of the week (defaults to current year)
 
         Returns:
             True if successful
@@ -57,7 +59,7 @@ class NotificationService:
 
             # Format message
             mention = format_user_mention(user_id, user.username)
-            date_range = get_week_date_range(week_number)
+            date_range = get_week_date_range(week_number, year)
 
             # Add automatic selection prefix if needed
             auto_prefix = ""
