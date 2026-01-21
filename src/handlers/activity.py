@@ -250,8 +250,10 @@ async def show_activity_command(message: Message) -> None:
                 return
 
             # Получаем текущую неделю и дежурного (любого статуса)
-            current_week = date.today().isocalendar()[1]
-            current_duty_assignment = await duty_repo.get_duty_for_week(pool.id, current_week)
+            today = date.today()
+            current_week = today.isocalendar()[1]
+            current_year = today.year
+            current_duty_assignment = await duty_repo.get_duty_for_week(pool_id=pool.id, week_number=current_week, year=current_year)
 
             if not current_duty_assignment:
                 await message.answer("ℹ️ На эту неделю дежурный ещё не выбран.")

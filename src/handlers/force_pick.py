@@ -6,8 +6,7 @@ from aiogram.types import Message
 
 from src.database.engine import db_manager
 from src.database.repositories import PoolRepository, UserRepository, UserPoolRepository
-from src.services.duty_manager import DutyManager
-from src.services.notification import NotificationService
+from src.keyboards.week_selector import create_week_selector_keyboard
 from src.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
@@ -18,7 +17,7 @@ router = Router()
 @router.message(Command("force_pick"))
 async def force_pick_command(message: Message) -> None:
     """
-    Handle /force_pick command - manually assign duty to specific user.
+    Handle /force_pick command - manually assign duty to specific user for a week.
 
     Usage: /force_pick @username
     Example: /force_pick @john_doe
@@ -28,8 +27,8 @@ async def force_pick_command(message: Message) -> None:
             await message.answer("⚠️ Эта команда работает только в групповых чатах!")
             return
 
-        if not message.bot or not message.text:
-            await message.answer("❌ Ошибка: бот недоступен.")
+        if not message.text:
+            await message.answer("❌ Ошибка: текст команды отсутствует.")
             return
 
         # Parse username from command
@@ -60,7 +59,7 @@ async def force_pick_command(message: Message) -> None:
                 group_id=message.chat.id, group_title=message.chat.title or "Unknown Group"
             )
 
-            # Find user by username in the pool
+            # Find user by username
             user_repo = UserRepository(session)
             target_user = await user_repo.get_by_username(username)
 
@@ -79,39 +78,24 @@ async def force_pick_command(message: Message) -> None:
                 )
                 return
 
-            # Assign duty to specific user
-            duty_manager = DutyManager(session)
-            result = await duty_manager.assign_duty_to_user(pool.id, target_user.user_id)
-
-            if not result:
-                await message.answer(
-                    f"❌ Не удалось назначить @{username} дежурным.\n"
-                    f"Возможно, на этой неделе уже есть подтвержденный дежурный."
-                )
-                return
-
-            # Announce duty with confirmation buttons
-            notification_service = NotificationService(message.bot, session)
-            success = await notification_service.announce_duty_assignment(
-                group_id=message.chat.id,
-                user_id=target_user.user_id,
-                week_number=result["week_number"],
-                assignment_id=result["assignment_id"],
-                is_automatic=False,
+            # Show week selection keyboard
+            keyboard = create_week_selector_keyboard(
+                action_prefix="force_pick_week", weeks_ahead=4, extra_data={"username": username}
             )
 
-            if success:
-                logger.info(
-                    f"✅ Force picked duty: user @{username} (ID {target_user.user_id}) "
-                    f"for week {result['week_number']} in group {message.chat.id} (pool {pool.id})"
-                )
-                await message.answer(
-                    f"✅ Уведомление отправлено пользователю @{username}.\n"
-                    f"Ожидается подтверждение дежурства на неделю {result['week_number']}."
-                )
-            else:
-                logger.error(f"Failed to announce duty for user @{username}")
-                await message.answer("❌ Ошибка при объявлении дежурного.")
+            await message.answer(
+                f"📅 Выберите неделю для назначения дежурства пользователю @{username}:",
+                reply_markup=keyboard,
+            )
+
+            logger.info(
+                f"Force pick initiated for user @{username} (ID {target_user.user_id}) "
+                f"in group {message.chat.id} (pool {pool.id})"
+            )
+
+    except Exception as e:
+        logger.error(f"Error in force_pick_command: {e}", exc_info=True)
+        await message.answer("❌ Произошла ошибка при обработке команды.")
 
     except Exception as e:
         logger.error(f"Error in force_pick_command: {e}", exc_info=True)

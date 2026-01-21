@@ -249,8 +249,14 @@ class DutyRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_duty_for_week(self, pool_id: int, week_number: int) -> DutyAssignment | None:
+    async def get_duty_for_week(
+        self, pool_id: int, year: int, week_number: int
+    ) -> DutyAssignment | None:
         """Get duty assignment for specific week (any status)."""
+        # For now, we match by week_number and assignment_date year
+        # In future, we can add a year column to the model
+        from datetime import datetime
+
         stmt = select(DutyAssignment).where(
             and_(
                 DutyAssignment.pool_id == pool_id,
@@ -258,10 +264,17 @@ class DutyRepository:
             )
         )
         result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+        duties = list(result.scalars().all())
+
+        # Filter by year from assignment_date
+        for duty in duties:
+            if duty.assignment_date.year == year:
+                return duty
+
+        return None
 
     async def get_pending_duties_for_week(
-        self, pool_id: int, week_number: int
+        self, pool_id: int, week_number: int, year: int | None = None
     ) -> list[DutyAssignment]:
         """Get all pending duty assignments for specific week."""
         from src.database.models import DutyStatus
@@ -274,7 +287,13 @@ class DutyRepository:
             )
         )
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        duties = list(result.scalars().all())
+
+        # Filter by year if provided
+        if year is not None:
+            duties = [d for d in duties if d.assignment_date.year == year]
+
+        return duties
 
     async def mark_notification_sent(self, duty_id: int) -> None:
         """Mark notification as sent."""
