@@ -5,6 +5,24 @@
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/),
 и этот проект следует [Semantic Versioning](https://semver.org/lang/ru/).
 
+## [Unreleased]
+
+### Изменено
+
+- **Команда `/force_pick`** - Теперь принимает username пользователя
+  - Формат: `/force_pick @username`
+  - Назначает конкретного пользователя дежурным вместо случайного выбора
+  - Проверяет, что пользователь находится в пуле дежурных
+  - Проверяет, что на текущую неделю еще нет подтвержденного дежурного
+
+### Добавлено
+
+- **Новые методы в DutyManager:**
+  - `assign_duty_to_user(pool_id, user_id)` - назначение конкретного пользователя дежурным
+- **Новые методы в repositories:**
+  - `UserRepository.get_by_username(username)` - поиск пользователя по username
+  - `UserPoolRepository.get_user_in_pool(pool_id, user_id)` - проверка пользователя в пуле
+
 ## [2.0.0] - 2026-01-21
 
 ### Основные изменения

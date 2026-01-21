@@ -59,6 +59,12 @@ class UserRepository:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
+    async def get_by_username(self, username: str) -> TelegramUser | None:
+        """Get user by username (without @)."""
+        stmt = select(TelegramUser).where(TelegramUser.username == username)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def update(self, user_id: int, **kwargs) -> TelegramUser | None:
         """Update user fields."""
         user = await self.get_by_id(user_id)
@@ -191,6 +197,14 @@ class UserPoolRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_user_in_pool(self, pool_id: int, user_id: int) -> UserInPool | None:
+        """Get specific user in pool."""
+        stmt = select(UserInPool).where(
+            and_(UserInPool.pool_id == pool_id, UserInPool.user_id == user_id)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
 
 class DutyRepository:

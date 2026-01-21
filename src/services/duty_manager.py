@@ -154,6 +154,67 @@ class DutyManager:
             logger.error(f"Error getting current duty: {e}")
             return None
 
+    async def assign_duty_to_user(self, pool_id: int, user_id: int) -> dict | None:
+        """
+        Assign duty to specific user.
+
+        Args:
+            pool_id: Pool ID
+            user_id: User ID to assign duty to
+
+        Returns:
+            Dict with assignment info or None if cannot assign
+        """
+        try:
+            # Get pool by database ID
+            pool = await self.pool_repo.get_by_pool_id(pool_id)
+            if not pool:
+                logger.error(f"Pool {pool_id} not found")
+                return None
+
+            # Get current week number
+            current_date = datetime.now()
+            week_number = current_date.isocalendar()[1]
+
+            # Check if already confirmed for this week
+            existing = await self.duty_repo.get_current_duty(pool_id, week_number)
+            if existing:
+                logger.info(f"Duty already confirmed for pool {pool_id}, week {week_number}")
+                return None
+
+            # Check if user is in pool
+            user_in_pool = await self.user_pool_repo.get_user_in_pool(pool_id, user_id)
+            if not user_in_pool:
+                logger.error(f"User {user_id} not in pool {pool_id}")
+                return None
+
+            # Create duty assignment
+            next_monday = self._get_next_monday(current_date)
+            assignment = await self.duty_repo.create_assignment(
+                user_id=user_id,
+                pool_id=pool_id,
+                week_number=week_number,
+                assignment_date=next_monday,
+                cycle_number=pool.current_cycle,
+            )
+
+            # Mark user as completed cycle
+            user_in_pool.has_completed_cycle = True
+            await self.session.commit()
+
+            logger.info(f"Assigned user {user_id} for duty in pool {pool_id}, week {week_number}")
+
+            return {
+                "user_id": user_id,
+                "week_number": week_number,
+                "assignment_date": next_monday,
+                "assignment_id": assignment.id,
+            }
+
+        except Exception as e:
+            logger.error(f"Error assigning duty to user: {e}")
+            return None
+
     @staticmethod
     def _get_next_monday(from_date: datetime) -> datetime:
         """
