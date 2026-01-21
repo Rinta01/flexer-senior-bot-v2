@@ -55,6 +55,7 @@ def create_week_selector_keyboard(
     action_prefix: str,
     weeks_ahead: int = 4,
     extra_data: dict[str, Any] | None = None,
+    week_statuses: dict[tuple[int, int], dict[str, bool]] | None = None,
 ) -> InlineKeyboardMarkup:
     """
     Create inline keyboard for week selection.
@@ -63,6 +64,7 @@ def create_week_selector_keyboard(
         action_prefix: Prefix for callback data (e.g., "pick_week" or "force_pick_week")
         weeks_ahead: Number of weeks ahead to show (default: 4)
         extra_data: Additional data to include in callback (e.g., {"username": "john"})
+        week_statuses: Dict mapping (year, week) to {"has_duty": bool, "has_activity": bool}
 
     Returns:
         InlineKeyboardMarkup with week selection buttons
@@ -93,10 +95,23 @@ def create_week_selector_keyboard(
 
         callback_data = ":".join(callback_parts)
 
+        # Get status indicators
+        indicators = ""
+        if week_statuses and (year, week_num) in week_statuses:
+            status = week_statuses[(year, week_num)]
+            if status.get("has_duty"):
+                indicators += "👤 "
+            if status.get("has_activity"):
+                indicators += "📝 "
+
         # Format button text
         button_text = format_week_display(week_num, year)
         if i == 0:
             button_text = f"📍 {button_text} (текущая)"
+
+        # Add indicators at the beginning
+        if indicators:
+            button_text = f"{indicators}{button_text}"
 
         builder.button(text=button_text, callback_data=callback_data)
 

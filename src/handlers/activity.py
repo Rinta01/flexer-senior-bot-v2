@@ -78,8 +78,10 @@ def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
                 f"\n\n💡 {mention}, вы можете добавить информацию о мероприятии:\n"
                 f"<code>/set_activity Название | Описание | Дата | Время</code>"
             )
-        else:
+        elif duty.status == DutyStatus.PENDING:
             response += f"\n\n⏳ Ожидаем подтверждения от дежурного."
+        elif duty.status == DutyStatus.SKIPPED:
+            response += f"\n\n❌ Дежурный отказался от дежурства на эту неделю."
 
     return response
 
@@ -139,6 +141,45 @@ def parse_datetime(date_str: str, time_str: str) -> datetime | None:
         return None
 
 
+async def get_week_statuses(
+    duty_repo: DutyRepository, pool_id: int, weeks_ahead: int = 4
+) -> dict[tuple[int, int], dict[str, bool]]:
+    """
+    Get status indicators for weeks (duty assigned, activity set).
+
+    Args:
+        duty_repo: DutyRepository instance
+        pool_id: Pool ID to check duties for
+        weeks_ahead: Number of weeks ahead to check (default: 4)
+
+    Returns:
+        Dictionary mapping (year, week_number) to status dict with has_duty and has_activity flags
+    """
+    current_date = datetime.now()
+    current_week = current_date.isocalendar()[1]
+    current_year = current_date.year
+
+    week_statuses = {}
+    for i in range(weeks_ahead + 1):  # Current + N weeks ahead
+        week_num = current_week + i
+        year = current_year
+        if week_num > 52:
+            week_num = week_num - 52
+            year = current_year + 1
+
+        duty = await duty_repo.get_duty_for_week(pool_id, year, week_num)
+        # Don't show duty indicator if duty was declined (SKIPPED)
+        has_active_duty = duty is not None and duty.status != DutyStatus.SKIPPED
+        week_statuses[(year, week_num)] = {
+            "has_duty": has_active_duty,
+            "has_activity": duty is not None
+            and has_active_duty
+            and duty.activity_title is not None,
+        }
+
+    return week_statuses
+
+
 @router.message(Command("set_activity"))
 async def set_activity_command(message: Message) -> None:
     """
@@ -163,11 +204,16 @@ async def set_activity_command(message: Message) -> None:
                 )
                 return
 
+            # Get week statuses for indicators
+            duty_repo = DutyRepository(session)
+            week_statuses = await get_week_statuses(duty_repo, pool.id, weeks_ahead=4)
+
             # Показываем клавиатуру выбора недели
             keyboard = create_week_selector_keyboard(
                 action_prefix="set_activity_week",
                 weeks_ahead=4,
                 extra_data={"user_id": str(message.from_user.id if message.from_user else "0")},
+                week_statuses=week_statuses,
             )
 
             await message.answer(
@@ -206,8 +252,14 @@ async def show_activity_command(message: Message) -> None:
                 )
                 return
 
+            # Get week statuses for indicators
+            duty_repo = DutyRepository(session)
+            week_statuses = await get_week_statuses(duty_repo, pool.id, weeks_ahead=4)
+
             # Показываем клавиатуру выбора недели
-            keyboard = create_week_selector_keyboard(action_prefix="activity_week", weeks_ahead=4)
+            keyboard = create_week_selector_keyboard(
+                action_prefix="activity_week", weeks_ahead=4, week_statuses=week_statuses
+            )
 
             await message.answer(
                 "📅 Выберите неделю для просмотра дежурного и активности:", reply_markup=keyboard

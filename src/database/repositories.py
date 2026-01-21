@@ -268,7 +268,7 @@ class DutyRepository:
             .execution_options(populate_existing=True)
         )
         result = await self.session.execute(stmt)
-        duties = list(result.scalars().all())
+        duties = result.scalars().all()
 
         # Filter by year from assignment_date
         for duty in duties:

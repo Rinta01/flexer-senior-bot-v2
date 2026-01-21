@@ -285,3 +285,24 @@ class TestFormatActivityInfo:
         # Should contain user mention without @ symbol
         assert "tg://user?id=456" in result
         assert "John" in result
+
+    def test_format_duty_with_skipped_status(self):
+        """Test formatting duty when duty was declined (SKIPPED status)."""
+        duty = DutyAssignment(
+            id=1,
+            pool_id=123,
+            user_id=456,
+            week_number=5,
+            status=DutyStatus.SKIPPED,
+        )
+        user = TelegramUser(id=456, user_id=456, username="john_doe", first_name="John")
+
+        result = format_activity_info(duty, user)
+
+        assert "🎯 <b>Дежурный недели</b>" in result
+        assert "@john_doe" in result
+        assert "Skipped" in result
+        assert "❓ Активность пока не установлена." in result
+        assert "❌ Дежурный отказался от дежурства на эту неделю." in result
+        assert "⏳ Ожидаем подтверждения" not in result
+        assert "💡" not in result

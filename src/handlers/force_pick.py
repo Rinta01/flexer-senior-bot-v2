@@ -5,7 +5,13 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from src.database.engine import db_manager
-from src.database.repositories import PoolRepository, UserRepository, UserPoolRepository
+from src.database.repositories import (
+    DutyRepository,
+    PoolRepository,
+    UserRepository,
+    UserPoolRepository,
+)
+from src.handlers.activity import get_week_statuses
 from src.keyboards.week_selector import create_week_selector_keyboard
 from src.utils.logger import setup_logging
 
@@ -78,9 +84,16 @@ async def force_pick_command(message: Message) -> None:
                 )
                 return
 
+            # Get week statuses for indicators
+            duty_repo = DutyRepository(session)
+            week_statuses = await get_week_statuses(duty_repo, pool.id, weeks_ahead=4)
+
             # Show week selection keyboard
             keyboard = create_week_selector_keyboard(
-                action_prefix="force_pick_week", weeks_ahead=4, extra_data={"username": username}
+                action_prefix="force_pick_week",
+                weeks_ahead=4,
+                extra_data={"username": username},
+                week_statuses=week_statuses,
             )
 
             await message.answer(
@@ -96,7 +109,3 @@ async def force_pick_command(message: Message) -> None:
     except Exception as e:
         logger.error(f"Error in force_pick_command: {e}", exc_info=True)
         await message.answer("❌ Произошла ошибка при обработке команды.")
-
-    except Exception as e:
-        logger.error(f"Error in force_pick_command: {e}", exc_info=True)
-        await message.answer("❌ Произошла ошибка при назначении дежурного.")

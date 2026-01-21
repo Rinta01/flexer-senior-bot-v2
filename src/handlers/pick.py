@@ -5,7 +5,8 @@ from aiogram.filters import Command
 from aiogram.types import Message
 
 from src.database.engine import db_manager
-from src.database.repositories import PoolRepository, UserPoolRepository
+from src.database.repositories import DutyRepository, PoolRepository, UserPoolRepository
+from src.handlers.activity import get_week_statuses
 from src.keyboards.week_selector import create_week_selector_keyboard
 from src.utils.logger import setup_logging
 
@@ -44,8 +45,14 @@ async def pick_command(message: Message) -> None:
                 )
                 return
 
+            # Get week statuses for indicators
+            duty_repo = DutyRepository(session)
+            week_statuses = await get_week_statuses(duty_repo, pool.id, weeks_ahead=4)
+
             # Show week selection keyboard
-            keyboard = create_week_selector_keyboard(action_prefix="pick_week", weeks_ahead=4)
+            keyboard = create_week_selector_keyboard(
+                action_prefix="pick_week", weeks_ahead=4, week_statuses=week_statuses
+            )
 
             await message.answer(
                 f"📅 Выберите неделю для случайного выбора дежурного:\n\n"

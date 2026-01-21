@@ -36,6 +36,7 @@ class TestActivitySecurity:
         with (
             patch("src.handlers.activity.db_manager.async_session") as mock_db_context,
             patch("src.handlers.activity.PoolRepository") as mock_pool_repo_class,
+            patch("src.handlers.activity.get_week_statuses") as mock_get_week_statuses,
         ):
             # Setup context manager
             mock_db_context.return_value.__aenter__.return_value = mock_session
@@ -46,6 +47,7 @@ class TestActivitySecurity:
 
             # Setup pool exists
             mock_pool_repo.get_by_id.return_value = mock_pool
+            mock_get_week_statuses.return_value = {}  # Empty week statuses
 
             await set_activity_command(mock_message)
 
@@ -73,6 +75,7 @@ class TestActivitySecurity:
             patch("src.handlers.activity.db_manager.async_session") as mock_db_context,
             patch("src.handlers.activity.PoolRepository") as mock_pool_repo_class,
             patch("src.handlers.activity.date") as mock_date,
+            patch("src.handlers.activity.get_week_statuses") as mock_get_week_statuses,
         ):
             # Setup current week
             current_week = 5
@@ -85,6 +88,7 @@ class TestActivitySecurity:
 
             # Setup pool exists
             mock_pool_repo.get_by_id.return_value = mock_pool
+            mock_get_week_statuses.return_value = {}  # Empty week statuses
 
             await set_activity_command(mock_message)
 
