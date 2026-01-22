@@ -179,12 +179,12 @@ class TestFormatActivityInfo:
 
         assert "🎯 <b>Дежурный недели</b>" in result
         assert "@john_doe" in result
-        assert "Confirmed" in result
+        assert "✅ Подтверждено" in result
         assert "📅 <b>Активность недели:</b>" in result
         assert "Weekly Party" in result
         assert "Fun event for everyone" in result
         assert "05.02.2026 в 19:30" in result
-        assert "Увидимся на мероприятии! 🎉" in result
+        assert "До встречи, не теряемся 💪" in result
 
     def test_format_confirmed_duty_without_activity(self):
         """Test formatting confirmed duty without activity set."""
@@ -202,7 +202,7 @@ class TestFormatActivityInfo:
 
         assert "🎯 <b>Дежурный недели</b>" in result
         assert "@john_doe" in result
-        assert "Confirmed" in result
+        assert "✅ Подтверждено" in result
         assert "❓ Активность пока не установлена." in result
         assert "💡" in result
         assert "/set_activity" in result
@@ -223,7 +223,7 @@ class TestFormatActivityInfo:
 
         assert "🎯 <b>Дежурный недели</b>" in result
         assert "@john_doe" in result
-        assert "Pending" in result
+        assert "⏳ Ожидает подтверждения" in result
         assert "❓ Активность пока не установлена." in result
         assert "⏳ Ожидаем подтверждения от дежурного." in result
         assert "💡" not in result
@@ -301,7 +301,7 @@ class TestFormatActivityInfo:
 
         assert "🎯 <b>Дежурный недели</b>" in result
         assert "@john_doe" in result
-        assert "Skipped" in result
+        assert "⏭️ Пропущено" in result
         assert "❓ Активность пока не установлена." in result
         assert "❌ Дежурный отказался от дежурства на эту неделю." in result
         assert "⏳ Ожидаем подтверждения" not in result

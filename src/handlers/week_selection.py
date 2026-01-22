@@ -228,7 +228,7 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
             if success:
                 await callback.message.edit_text(
                     f"✅ Уведомление отправлено пользователю @{username} на {format_week_display(week_number, year)}.\n\n"
-                    f"Ожидается подтверждение дежурства."
+                    f"Ждем, пока @{username} проснется и нажмет на кнопочку"
                 )
                 logger.info(
                     f"Force picked duty for week {week_number}/{year}: user @{username} (ID {target_user.user_id}) "

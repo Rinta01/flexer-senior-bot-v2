@@ -10,7 +10,7 @@ from src.database.engine import db_manager
 from src.database.models import DutyAssignment, DutyStatus, TelegramUser
 from src.database.repositories import DutyRepository, PoolRepository
 from src.keyboards.week_selector import create_week_selector_keyboard
-from src.utils.formatters import format_user_mention, get_week_date_range
+from src.utils.formatters import format_duty_status, format_user_mention, get_week_date_range
 from src.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
@@ -36,8 +36,8 @@ def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
 
     date_range = get_week_date_range(duty.week_number)
 
-    # Base response with duty info (capitalize status for better display)
-    status_display = duty.status.value.capitalize()
+    # Base response with duty info (use formatted status with Russian text)
+    status_display = format_duty_status(duty.status)
     response = (
         f"🎯 <b>Дежурный недели</b>\n\n"
         f"Неделя: {date_range}\n"
@@ -61,7 +61,7 @@ def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
         if activity_time:
             response += f"<b>Когда:</b> {activity_time}\n"
 
-        response += f"\nУвидимся на мероприятии! 🎉"
+        response += f"\nДо встречи, не теряемся 💪"
 
     else:
         # Activity not set

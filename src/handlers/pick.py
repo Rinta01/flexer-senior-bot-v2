@@ -56,7 +56,7 @@ async def pick_command(message: Message) -> None:
 
             await message.answer(
                 f"📅 Выберите неделю для случайного выбора дежурного:\n\n"
-                f"В пуле дежурных: {len(users_in_pool)} участников",
+                f"Участников в пуле: {len(users_in_pool)}",
                 reply_markup=keyboard,
             )
 

@@ -70,8 +70,7 @@ async def duty_confirm_callback(callback: CallbackQuery) -> None:
             new_text = (
                 f"🎯 <b>Дежурный на неделю {date_range}</b>\n\n"
                 f"{mention} принял дежурство! ✅\n\n"
-                f"Отвечает за организацию мероприятия на эту неделю.\n\n"
-                f"Удачи! 💪"
+                f"Все замерли в ожидании анонса активности 🫠\n\n"
             )
 
             if callback.message and isinstance(callback.message, Message):
