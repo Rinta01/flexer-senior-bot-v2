@@ -18,6 +18,7 @@ from src.handlers import (
     duty_callbacks,
     force_pick,
     help,
+    history,
     join,
     leave,
     pick,
@@ -58,6 +59,7 @@ class FlexerBot:
         self.dp.include_router(pick.router)  # New: random duty selection
         self.dp.include_router(force_pick.router)
         self.dp.include_router(activity.router)  # Activity management
+        self.dp.include_router(history.router)  # History command
         self.dp.include_router(help.router)  # Help command
         self.dp.include_router(week_selection.router)  # Week selection callbacks
         self.dp.include_router(duty_callbacks.router)  # Duty confirmation callbacks
@@ -181,6 +183,7 @@ class FlexerBot:
             BotCommand(
                 command="set_activity", description="Установить активность (только дежурный)"
             ),
+            BotCommand(command="history", description="История дежурств"),
             BotCommand(command="help", description="Полная справка"),
         ]
 

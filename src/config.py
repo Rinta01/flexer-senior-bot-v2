@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     WEEKLY_DUTY_HOUR: int = 10
     WEEKLY_DUTY_MINUTE: int = 0
 
+    # History Configuration
+    HISTORY_LIMIT: int = 10  # Number of duty records to show in history
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,

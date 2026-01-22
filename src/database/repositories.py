@@ -415,3 +415,23 @@ class DutyRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_recent_duties(self, pool_id: int, limit: int = 10) -> list[DutyAssignment]:
+        """
+        Get recent duty assignments for pool, ordered by date descending.
+
+        Args:
+            pool_id: Pool ID
+            limit: Maximum number of records to return
+
+        Returns:
+            List of duty assignments, most recent first
+        """
+        stmt = (
+            select(DutyAssignment)
+            .where(DutyAssignment.pool_id == pool_id)
+            .order_by(DutyAssignment.assignment_date.desc())
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
