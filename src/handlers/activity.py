@@ -1,6 +1,6 @@
 """Activity management handler - for setting weekly activities by confirmed duty."""
 
-from datetime import datetime, date, timezone
+from datetime import datetime, timezone
 
 from aiogram import Router
 from aiogram.filters import Command
@@ -8,12 +8,10 @@ from aiogram.types import Message
 
 from src.database.engine import db_manager
 from src.database.models import DutyAssignment, DutyStatus, TelegramUser
-from src.database.repositories import DutyRepository, PoolRepository, UserRepository
+from src.database.repositories import DutyRepository, PoolRepository
 from src.keyboards.week_selector import create_week_selector_keyboard
-from src.services.duty_manager import DutyManager
-from src.utils.formatters import get_week_date_range
+from src.utils.formatters import format_user_mention, get_week_date_range
 from src.utils.logger import setup_logging
-from src.utils.validators import format_user_mention
 
 logger = setup_logging(__name__)
 
@@ -33,12 +31,8 @@ def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
     Returns:
         Formatted HTML string with duty and activity information
     """
-    # Format mention - use first_name as fallback if no username
-    if user.username:
-        mention = f"@{user.username}"
-    else:
-        display_name = user.first_name or f"User {duty.user_id}"
-        mention = f"[{display_name}](tg://user?id={duty.user_id})"
+    # Format mention using centralized helper with first_name fallback
+    mention = format_user_mention(duty.user_id, user.username, user.first_name)
 
     date_range = get_week_date_range(duty.week_number)
 

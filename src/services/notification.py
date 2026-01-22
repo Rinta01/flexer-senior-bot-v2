@@ -4,9 +4,8 @@ from aiogram import Bot
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from src.database.repositories import DutyRepository, UserRepository
-from src.utils.formatters import get_week_date_range
+from src.utils.formatters import format_user_mention, get_week_date_range
 from src.utils.logger import setup_logging
-from src.utils.validators import format_user_mention
 
 logger = setup_logging(__name__)
 
@@ -58,7 +57,7 @@ class NotificationService:
                 return False
 
             # Format message
-            mention = format_user_mention(user_id, user.username)
+            mention = format_user_mention(user_id, user.username, user.first_name)
             date_range = get_week_date_range(week_number, year)
 
             # Add automatic selection prefix if needed

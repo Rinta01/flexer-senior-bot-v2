@@ -6,9 +6,8 @@ from aiogram.types import CallbackQuery, Message
 from src.database.engine import db_manager
 from src.database.models import DutyStatus
 from src.database.repositories import DutyRepository, UserRepository
-from src.utils.formatters import get_week_date_range
+from src.utils.formatters import format_user_mention, get_week_date_range
 from src.utils.logger import setup_logging
-from src.utils.validators import format_user_mention
 
 logger = setup_logging(__name__)
 
@@ -62,7 +61,9 @@ async def duty_confirm_callback(callback: CallbackQuery) -> None:
 
             # Get user info
             user = await user_repo.get_by_id(duty.user_id)
-            mention = format_user_mention(duty.user_id, user.username if user else None)
+            mention = format_user_mention(
+                duty.user_id, user.username if user else None, user.first_name if user else None
+            )
 
             # Update message
             date_range = get_week_date_range(duty.week_number)
@@ -135,7 +136,9 @@ async def duty_decline_callback(callback: CallbackQuery) -> None:
 
             # Get user info
             user = await user_repo.get_by_id(duty.user_id)
-            mention = format_user_mention(duty.user_id, user.username if user else None)
+            mention = format_user_mention(
+                duty.user_id, user.username if user else None, user.first_name if user else None
+            )
 
             # Update message
             date_range = get_week_date_range(duty.week_number)

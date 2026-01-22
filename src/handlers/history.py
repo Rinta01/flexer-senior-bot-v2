@@ -1,15 +1,13 @@
 """History command handler - show duty history."""
 
-from datetime import datetime, timedelta
-
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
 from src.config import settings
 from src.database.engine import db_manager
-from src.database.models import DutyStatus
 from src.database.repositories import DutyRepository, PoolRepository
+from src.utils.formatters import format_duty_status, format_user_display_name, get_week_dates
 from src.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
@@ -18,37 +16,6 @@ router = Router()
 
 # History limit (configurable via settings)
 HISTORY_LIMIT = getattr(settings, "HISTORY_LIMIT", 10)
-
-
-def get_week_dates(year: int, week: int) -> tuple[datetime, datetime]:
-    """
-    Calculate start and end dates for ISO week.
-
-    Args:
-        year: Year
-        week: ISO week number
-
-    Returns:
-        Tuple of (start_date, end_date) for the week
-    """
-    # ISO week starts on Monday
-    # Week 1 is the week containing January 4th
-    jan_4 = datetime(year, 1, 4)
-    week_1_start = jan_4 - timedelta(days=jan_4.weekday())
-    week_start = week_1_start + timedelta(weeks=week - 1)
-    week_end = week_start + timedelta(days=6)
-    return week_start, week_end
-
-
-def format_duty_status(status: DutyStatus) -> str:
-    """Format duty status with emoji."""
-    status_map = {
-        DutyStatus.PENDING: "⏳ Ожидает подтверждения",
-        DutyStatus.CONFIRMED: "✅ Подтверждено",
-        DutyStatus.DECLINED: "❌ Отказался",
-        DutyStatus.SKIPPED: "⏭️ Пропущено",
-    }
-    return status_map.get(status, str(status.value))
 
 
 def format_duty_record(duty, index: int) -> str:
@@ -62,17 +29,15 @@ def format_duty_record(duty, index: int) -> str:
     Returns:
         Formatted string for duty record
     """
-    # Get week dates
+    # Get week dates using centralized helper
     week_start, week_end = get_week_dates(duty.assignment_date.year, duty.week_number)
     date_range = f"{week_start.strftime('%d.%m')} - {week_end.strftime('%d.%m.%Y')}"
 
-    # Format user
+    # Format user using centralized helper
     user = duty.user
-    user_name = f"{user.first_name}"
-    if user.username:
-        user_name += f" (@{user.username})"
+    user_name = format_user_display_name(user.first_name, user.username)
 
-    # Status
+    # Status using centralized helper
     status_text = format_duty_status(duty.status)
 
     # Activity status

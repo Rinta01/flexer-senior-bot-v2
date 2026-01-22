@@ -20,19 +20,3 @@ def validate_username(username: str | None) -> bool:
 
     # Check if contains only valid characters
     return all(c.isalnum() or c == "_" for c in username)
-
-
-def format_user_mention(user_id: int, username: str | None = None) -> str:
-    """
-    Format user mention for Telegram message.
-
-    Args:
-        user_id: Telegram user ID
-        username: Telegram username (if available)
-
-    Returns:
-        Formatted mention string
-    """
-    if username and validate_username(username):
-        return f"@{username}"
-    return f"[User {user_id}](tg://user?id={user_id})"

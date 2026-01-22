@@ -1,6 +1,7 @@
 """Unit tests for validators."""
 
-from src.utils.validators import format_user_mention, validate_username
+from src.utils.formatters import format_user_mention
+from src.utils.validators import validate_username
 
 
 def test_validate_username_valid():
@@ -44,6 +45,13 @@ def test_format_user_mention_without_username():
     """Test formatting mention without username."""
     mention = format_user_mention(123456, None)
     assert "tg://user?id=123456" in mention
+
+
+def test_format_user_mention_with_first_name():
+    """Test formatting mention with first_name when no username."""
+    mention = format_user_mention(123456, None, "John")
+    assert "tg://user?id=123456" in mention
+    assert "John" in mention
 
 
 def test_format_user_mention_invalid_username():

@@ -15,7 +15,6 @@ from src.services.duty_manager import DutyManager
 from src.services.notification import NotificationService
 from src.utils.formatters import get_week_date_range
 from src.utils.logger import setup_logging
-from src.utils.validators import format_user_mention
 
 from .activity import format_activity_info
 

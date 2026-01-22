@@ -1,35 +1,12 @@
 """Week selector keyboard for duty assignment."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-
-def get_week_start_end(year: int, week: int) -> tuple[datetime, datetime]:
-    """
-    Get start (Monday) and end (Sunday) dates for a given week number.
-
-    Args:
-        year: Year number
-        week: ISO week number (1-53)
-
-    Returns:
-        Tuple of (start_date, end_date) for the week
-    """
-    # ISO week 1 is the week containing the first Thursday of the year
-    # This means week 1 contains January 4th
-    jan_4 = datetime(year, 1, 4)
-
-    # Get Monday of week 1 (jan_4 is always in week 1)
-    week_1_monday = jan_4 - timedelta(days=jan_4.weekday())
-
-    # Calculate the Monday of the requested week
-    week_start = week_1_monday + timedelta(weeks=week - 1)
-    week_end = week_start + timedelta(days=6)
-
-    return week_start, week_end
+from src.utils.formatters import get_week_dates
 
 
 def format_week_display(week_number: int, year: int | None = None) -> str:
@@ -46,7 +23,7 @@ def format_week_display(week_number: int, year: int | None = None) -> str:
     if year is None:
         year = datetime.now().year
 
-    start, end = get_week_start_end(year, week_number)
+    start, end = get_week_dates(year, week_number)
 
     return f"Неделя {week_number} ({start.strftime('%d.%m')} - {end.strftime('%d.%m')})"
 
