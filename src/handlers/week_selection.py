@@ -63,9 +63,18 @@ async def handle_pick_week_callback(callback: CallbackQuery) -> None:
                 return
 
             if result.get("already_assigned"):
-                await callback.message.edit_text(
-                    f"ℹ️ На {format_week_display(week_number, year)} уже назначен дежурный."
-                )
+                status = result.get("status")
+                if status == "pending":
+                    await callback.message.edit_text(
+                        f"ℹ️ На {format_week_display(week_number, year)} уже есть дежурный, ожидающий подтверждения.\n"
+                        f"Случайный выбор не может заменить существующего дежурного.\n\n"
+                        f"Используйте /force_pick для принудительного назначения."
+                    )
+                else:
+                    await callback.message.edit_text(
+                        f"ℹ️ На {format_week_display(week_number, year)} уже назначен дежурный.\n"
+                        f"Случайный выбор работает только для недель с отказавшимся дежурным."
+                    )
                 return
 
             if result.get("error") == "all_pending":
@@ -133,6 +142,7 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
         year = data["year"]
         week_number = data["week"]
         username = data.get("username")
+        force = data.get("force") == "true"  # Convert string "true" to boolean
 
         if not username:
             await callback.answer("❌ Ошибка: username не указан", show_alert=True)
@@ -162,13 +172,41 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
             # Assign duty to user for the week
             duty_manager = DutyManager(session)
             result = await duty_manager.assign_duty_to_user_for_week(
-                pool.id, target_user.user_id, year, week_number
+                pool.id, target_user.user_id, year, week_number, force=force
             )
 
             if not result:
                 await callback.message.edit_text(
                     f"❌ Не удалось назначить @{username} дежурным на {format_week_display(week_number, year)}.\n"
                     f"Возможно, на эту неделю уже есть подтвержденный дежурный."
+                )
+                return
+
+            # Check if confirmation is needed
+            if result.get("needs_confirmation"):
+                existing_status = result.get("existing_status", "unknown")
+                status_text = {
+                    "pending": "ожидает подтверждения",
+                    "confirmed": "подтвержден",
+                    "skipped": "отказался от дежурства",
+                }.get(existing_status, "неизвестный статус")
+
+                # Create confirmation keyboard
+                from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+                builder = InlineKeyboardBuilder()
+                builder.button(
+                    text="✅ Да, заменить",
+                    callback_data=f"force_pick_week:{year}:{week_number}:username:{username}:force:true",
+                )
+                builder.button(text="❌ Отмена", callback_data="cancel_force_pick")
+                builder.adjust(2)
+
+                await callback.message.edit_text(
+                    f"⚠️ ВНИМАНИЕ!\n\n"
+                    f"На {format_week_display(week_number, year)} уже назначен дежурный ({status_text}).\n\n"
+                    f"Вы уверены, что хотите заменить текущего дежурного на @{username}?",
+                    reply_markup=builder.as_markup(),
                 )
                 return
 
@@ -363,5 +401,11 @@ async def handle_set_activity_week_callback(callback: CallbackQuery) -> None:
         logger.error(f"Error handling set_activity_week callback: {e}", exc_info=True)
         if callback.message and isinstance(callback.message, Message):
             await callback.message.edit_text("❌ Произошла ошибка при обработке выбора недели.")
-        if callback.message and isinstance(callback.message, Message):
-            await callback.message.edit_text("❌ Произошла ошибка при назначении дежурного.")
+
+
+@router.callback_query(F.data == "cancel_force_pick")
+async def handle_cancel_force_pick(callback: CallbackQuery) -> None:
+    """Handle cancellation of force pick operation."""
+    await callback.answer()
+    if callback.message and isinstance(callback.message, Message):
+        await callback.message.edit_text("❌ Операция отменена.")

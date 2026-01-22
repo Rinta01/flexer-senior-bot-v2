@@ -272,14 +272,28 @@ class DutyManager:
 
             # Check if already assigned for this week
             existing = await self.duty_repo.get_duty_for_week(pool_id, year, week_number)
-            if existing and existing.status == DutyStatus.CONFIRMED:
-                logger.info(f"Duty already confirmed for pool {pool_id}, week {week_number}/{year}")
-                return {
-                    "user_id": existing.user_id,
-                    "week_number": week_number,
-                    "year": year,
-                    "already_assigned": True,
-                }
+            if existing:
+                # /pick can only work if the existing duty was SKIPPED (declined)
+                if existing.status == DutyStatus.CONFIRMED:
+                    logger.info(
+                        f"Duty already confirmed for pool {pool_id}, week {week_number}/{year}"
+                    )
+                    return {
+                        "user_id": existing.user_id,
+                        "week_number": week_number,
+                        "year": year,
+                        "already_assigned": True,
+                    }
+                elif existing.status == DutyStatus.PENDING:
+                    logger.info(f"Duty pending for pool {pool_id}, week {week_number}/{year}")
+                    return {
+                        "user_id": existing.user_id,
+                        "week_number": week_number,
+                        "year": year,
+                        "already_assigned": True,
+                        "status": "pending",
+                    }
+                # If status is SKIPPED, continue with new assignment
 
             # Get pending assignments for this week
             pending_duties = await self.duty_repo.get_pending_duties_for_week(
@@ -349,7 +363,7 @@ class DutyManager:
             return None
 
     async def assign_duty_to_user_for_week(
-        self, pool_id: int, user_id: int, year: int, week_number: int
+        self, pool_id: int, user_id: int, year: int, week_number: int, force: bool = False
     ) -> dict | None:
         """
         Assign duty to specific user for specific week.
@@ -359,9 +373,10 @@ class DutyManager:
             user_id: User ID
             year: Year number
             week_number: ISO week number
+            force: If True, replaces existing duty even if not SKIPPED (for /force_pick)
 
         Returns:
-            Dict with assignment info or None if cannot assign
+            Dict with assignment info, or dict with 'needs_confirmation' if existing duty found
         """
         try:
             pool = await self.pool_repo.get_by_pool_id(pool_id)
@@ -369,11 +384,27 @@ class DutyManager:
                 logger.error(f"Pool {pool_id} not found")
                 return None
 
-            # Check if already confirmed for this week
+            # Check if already assigned for this week
             existing = await self.duty_repo.get_duty_for_week(pool_id, year, week_number)
-            if existing and existing.status == DutyStatus.CONFIRMED:
-                logger.info(f"Duty already confirmed for pool {pool_id}, week {week_number}/{year}")
-                return None
+            if existing:
+                # If force=False and duty exists (even SKIPPED), ask for confirmation
+                if not force:
+                    logger.info(
+                        f"Duty exists for pool {pool_id}, week {week_number}/{year} - needs confirmation"
+                    )
+                    return {
+                        "needs_confirmation": True,
+                        "existing_duty": existing,
+                        "existing_status": existing.status.value,
+                        "week_number": week_number,
+                        "year": year,
+                    }
+                # If force=True but duty is CONFIRMED, still don't allow
+                if existing.status == DutyStatus.CONFIRMED:
+                    logger.info(
+                        f"Cannot force replace confirmed duty for pool {pool_id}, week {week_number}/{year}"
+                    )
+                    return None
 
             # Check if user is in pool
             user_in_pool = await self.user_pool_repo.get_user_in_pool(pool_id, user_id)

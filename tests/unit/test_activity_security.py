@@ -74,12 +74,13 @@ class TestActivitySecurity:
         with (
             patch("src.handlers.activity.db_manager.async_session") as mock_db_context,
             patch("src.handlers.activity.PoolRepository") as mock_pool_repo_class,
-            patch("src.handlers.activity.date") as mock_date,
+            patch("src.handlers.activity.datetime") as mock_datetime,
             patch("src.handlers.activity.get_week_statuses") as mock_get_week_statuses,
         ):
             # Setup current week
             current_week = 5
-            mock_date.today.return_value.isocalendar.return_value = (2026, current_week, 1)
+            mock_datetime.now.return_value.isocalendar.return_value = (2026, current_week, 1)
+            mock_datetime.now.return_value.year = 2026
 
             # Setup context and repos
             mock_db_context.return_value.__aenter__.return_value = mock_session

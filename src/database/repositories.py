@@ -3,8 +3,9 @@
 from datetime import datetime
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
-from src.database.models import DutyAssignment, DutyPool, TelegramUser, UserInPool
+from src.database.models import DutyAssignment, DutyPool, DutyStatus, TelegramUser, UserInPool
 from src.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
@@ -418,20 +419,55 @@ class DutyRepository:
 
     async def get_recent_duties(self, pool_id: int, limit: int = 10) -> list[DutyAssignment]:
         """
-        Get recent duty assignments for pool, ordered by date descending.
+        Get recent duty assignments for pool, showing only the most relevant record per week.
+
+        For each week, returns:
+        - CONFIRMED duty if exists (highest priority)
+        - Otherwise, the most recent duty (PENDING or SKIPPED)
+        - Weeks with no duties are not included
 
         Args:
             pool_id: Pool ID
-            limit: Maximum number of records to return
+            limit: Maximum number of weeks to return
 
         Returns:
-            List of duty assignments, most recent first
+            List of duty assignments, most recent weeks first, one record per week
         """
+        # Get all duties for the pool, ordered by date descending
         stmt = (
             select(DutyAssignment)
+            .options(joinedload(DutyAssignment.user))
             .where(DutyAssignment.pool_id == pool_id)
             .order_by(DutyAssignment.assignment_date.desc())
-            .limit(limit)
         )
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        all_duties = list(result.scalars().all())
+
+        # Group duties by (year, week_number)
+        weeks_map: dict[tuple[int, int], list[DutyAssignment]] = {}
+        for duty in all_duties:
+            week_key = (duty.assignment_date.year, duty.week_number)
+            if week_key not in weeks_map:
+                weeks_map[week_key] = []
+            weeks_map[week_key].append(duty)
+
+        # For each week, select the most relevant duty
+        result_duties = []
+        for week_key in sorted(weeks_map.keys(), reverse=True):  # Sort by (year, week) descending
+            duties_for_week = weeks_map[week_key]
+
+            # Priority 1: Find CONFIRMED duty
+            confirmed_duty = next(
+                (d for d in duties_for_week if d.status == DutyStatus.CONFIRMED), None
+            )
+            if confirmed_duty:
+                result_duties.append(confirmed_duty)
+            else:
+                # Priority 2: Take the most recent duty (first one, as already sorted by date)
+                result_duties.append(duties_for_week[0])
+
+            # Stop if we've reached the limit
+            if len(result_duties) >= limit:
+                break
+
+        return result_duties
