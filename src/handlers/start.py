@@ -26,7 +26,6 @@ async def start_command(message: Message) -> None:
             "/pool - список всех участников пула\n"
             "/activity - дежурный и активность недели\n"
             "/set_activity - установить активность (только дежурный)\n"
-            "/force_pick - выбрать дежурного вручную\n"
             "/help - полная справка\n\n"
             # f"⏰ <b>Автовыбор дежурного:</b> {schedule}\n\n"
         )
