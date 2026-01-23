@@ -114,6 +114,12 @@ async def select_and_announce_duty(
                 "result": result,
             }
 
+        # Announce new cycle if it was reset
+        if result.get("cycle_reset"):
+            notification_service = NotificationService(bot, session)
+            await notification_service.announce_new_cycle(group_id)
+            logger.info(f"New cycle started for pool {pool_id}")
+
         # Announce duty with confirmation buttons
         notification_service = NotificationService(bot, session)
         success = await notification_service.announce_duty_assignment(

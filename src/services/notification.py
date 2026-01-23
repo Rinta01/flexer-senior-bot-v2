@@ -112,6 +112,36 @@ class NotificationService:
             logger.error(f"Error announcing duty: {e}")
             return False
 
+    async def announce_new_cycle(self, group_id: int) -> bool:
+        """
+        Announce that a new duty cycle has started.
+
+        Args:
+            group_id: Telegram group ID
+
+        Returns:
+            True if successful
+        """
+        try:
+            message_text = (
+                "🔄 <b>Новый цикл дежурств!</b>\n\n"
+                "Все участники пула успели побывать дежурными! 🎉\n"
+                "Начинаем новый р-р-раунд\n\n"
+            )
+
+            await self.bot.send_message(
+                chat_id=group_id,
+                text=message_text,
+                parse_mode="HTML",
+            )
+
+            logger.info(f"Announced new cycle in group {group_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error announcing new cycle: {e}", exc_info=True)
+            return False
+
     async def send_welcome_message(self, chat_id: int, chat_title: str) -> bool:
         """
         Send welcome message when bot joins group.

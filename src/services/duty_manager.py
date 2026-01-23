@@ -74,6 +74,9 @@ class DutyManager:
                 user for user in available_users if user.user_id not in pending_user_ids
             ]
 
+            # Track if cycle was reset
+            cycle_reset = False
+
             if not available_users:
                 logger.warning(f"No available users in pool {pool_id}, resetting cycle")
                 # Reset cycle for all users
@@ -81,6 +84,8 @@ class DutyManager:
                 for user in all_users:
                     user.has_completed_cycle = False
                 await self.session.commit()
+
+                cycle_reset = True
 
                 # Filter out users with pending assignments again
                 available_users = [
@@ -130,6 +135,7 @@ class DutyManager:
                 "assignment_date": next_monday,
                 "assignment_id": assignment.id,
                 "already_assigned": False,
+                "cycle_reset": cycle_reset,
             }
 
         except Exception as e:
