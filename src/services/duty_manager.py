@@ -419,12 +419,22 @@ class DutyManager:
                         "week_number": week_number,
                         "year": year,
                     }
-                # If force=True but duty is CONFIRMED, still don't allow
-                if existing.status == DutyStatus.CONFIRMED:
+                # If force=True, mark old duty as FORCE_REMOVED and reset user's cycle
+                logger.info(
+                    f"Force replacing duty {existing.id} for pool {pool_id}, week {week_number}/{year} "
+                    f"with status {existing.status.value}"
+                )
+                existing.status = DutyStatus.FORCE_REMOVED
+
+                # Reset has_completed_cycle for replaced user
+                replaced_user = await self.user_pool_repo.get_user_in_pool(
+                    pool_id, existing.user_id
+                )
+                if replaced_user and replaced_user.has_completed_cycle:
                     logger.info(
-                        f"Cannot force replace confirmed duty for pool {pool_id}, week {week_number}/{year}"
+                        f"Resetting has_completed_cycle for replaced user {existing.user_id}"
                     )
-                    return None
+                    replaced_user.has_completed_cycle = False
 
             # Check if user is in pool
             user_in_pool = await self.user_pool_repo.get_user_in_pool(pool_id, user_id)

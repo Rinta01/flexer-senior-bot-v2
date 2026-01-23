@@ -14,6 +14,7 @@ class DutyStatus(enum.Enum):
     CONFIRMED = "confirmed"  # Подтверждено
     DECLINED = "declined"  # Отказался
     SKIPPED = "skipped"  # Пропущено (не ответил)
+    FORCE_REMOVED = "force_removed"  # Заменено принудительно
 
 
 class Base(DeclarativeBase):

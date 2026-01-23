@@ -438,10 +438,13 @@ class DutyRepository:
             List of duty assignments, most recent weeks first, one record per week
         """
         # Get all duties for the pool, ordered by date descending
+        # Exclude FORCE_REMOVED duties as they are for audit only
         stmt = (
             select(DutyAssignment)
             .options(joinedload(DutyAssignment.user))
-            .where(DutyAssignment.pool_id == pool_id)
+            .where(
+                DutyAssignment.pool_id == pool_id, DutyAssignment.status != DutyStatus.FORCE_REMOVED
+            )
             .order_by(DutyAssignment.assignment_date.desc())
         )
         result = await self.session.execute(stmt)

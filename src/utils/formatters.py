@@ -98,6 +98,7 @@ def format_duty_status(status: DutyStatus) -> str:
         DutyStatus.CONFIRMED: "✅ Подтверждено",
         DutyStatus.DECLINED: "❌ Отказался",
         DutyStatus.SKIPPED: "⏭️ Пропущено",
+        DutyStatus.FORCE_REMOVED: "🔄 Заменено",  # Should never be displayed
     }
     return status_map.get(status, str(status.value))
 
