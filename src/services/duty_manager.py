@@ -50,20 +50,34 @@ class DutyManager:
 
             # Get current week number
             current_date = datetime.now()
+            current_year = current_date.year
             week_number = current_date.isocalendar()[1]
 
             # Check if already confirmed for this week
-            existing = await self.duty_repo.get_current_duty(pool_id, week_number)
+            existing = await self.duty_repo.get_duty_for_week(pool_id, current_year, week_number)
             if existing:
-                logger.info(f"Duty already confirmed for pool {pool_id}, week {week_number}")
-                return {
-                    "user_id": existing.user_id,
-                    "week_number": week_number,
-                    "already_assigned": True,
-                }
+                if existing.status == DutyStatus.CONFIRMED:
+                    logger.info(f"Duty already confirmed for pool {pool_id}, week {week_number}")
+                    return {
+                        "user_id": existing.user_id,
+                        "week_number": week_number,
+                        "already_assigned": True,
+                    }
+                elif existing.status == DutyStatus.PENDING:
+                    logger.info(f"Duty pending for pool {pool_id}, week {week_number}")
+                    return {
+                        "user_id": existing.user_id,
+                        "week_number": week_number,
+                        "already_assigned": True,
+                        "error": "all_pending",
+                        "pending_duties": [existing],
+                    }
+                # If status is SKIPPED/DECLINED, continue with new assignment
 
             # Get users with pending assignments for this week
-            pending_duties = await self.duty_repo.get_pending_duties_for_week(pool_id, week_number)
+            pending_duties = await self.duty_repo.get_pending_duties_for_week(
+                pool_id, week_number, current_year
+            )
             pending_user_ids = {duty.user_id for duty in pending_duties}
 
             # Get available users (not completed current cycle)

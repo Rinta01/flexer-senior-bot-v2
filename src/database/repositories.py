@@ -1,6 +1,6 @@
 """Data access layer - repositories for database operations."""
 
-from datetime import datetime
+from datetime import date, datetime
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -238,8 +238,6 @@ class DutyRepository:
 
     async def get_current_duty(self, pool_id: int, week_number: int) -> DutyAssignment | None:
         """Get confirmed duty assignment for specific week."""
-        from src.database.models import DutyStatus
-
         stmt = select(DutyAssignment).where(
             and_(
                 DutyAssignment.pool_id == pool_id,
@@ -253,11 +251,11 @@ class DutyRepository:
     async def get_duty_for_week(
         self, pool_id: int, year: int, week_number: int
     ) -> DutyAssignment | None:
-        """Get duty assignment for specific week (any status)."""
-        # For now, we match by week_number and assignment_date year
-        # In future, we can add a year column to the model
-        from datetime import datetime
+        """Get duty assignment for specific week (any status).
 
+        If multiple duties exist for the week, returns the most relevant one:
+        Priority: CONFIRMED > PENDING > SKIPPED > DECLINED
+        """
         stmt = (
             select(DutyAssignment)
             .where(
@@ -272,18 +270,31 @@ class DutyRepository:
         duties = result.scalars().all()
 
         # Filter by year from assignment_date
-        for duty in duties:
-            if duty.assignment_date.year == year:
-                return duty
+        duties_for_year = [duty for duty in duties if duty.assignment_date.year == year]
 
-        return None
+        if not duties_for_year:
+            return None
+
+        # If only one duty, return it
+        if len(duties_for_year) == 1:
+            return duties_for_year[0]
+
+        # Multiple duties - return by priority
+        # Priority: CONFIRMED > PENDING > SKIPPED > DECLINED
+        status_priority = {
+            DutyStatus.CONFIRMED: 0,
+            DutyStatus.PENDING: 1,
+            DutyStatus.SKIPPED: 2,
+            DutyStatus.DECLINED: 3,
+        }
+
+        duties_for_year.sort(key=lambda d: status_priority.get(d.status, 999))
+        return duties_for_year[0]
 
     async def get_pending_duties_for_week(
         self, pool_id: int, week_number: int, year: int | None = None
     ) -> list[DutyAssignment]:
         """Get all pending duty assignments for specific week."""
-        from src.database.models import DutyStatus
-
         stmt = select(DutyAssignment).where(
             and_(
                 DutyAssignment.pool_id == pool_id,
@@ -344,8 +355,6 @@ class DutyRepository:
         self, duty_id: int, title: str, description: str, activity_datetime: datetime
     ) -> DutyAssignment | None:
         """Update activity details for duty assignment."""
-        from datetime import datetime
-
         stmt = select(DutyAssignment).where(DutyAssignment.id == duty_id)
         result = await self.session.execute(stmt)
         duty = result.scalar_one_or_none()
@@ -364,8 +373,6 @@ class DutyRepository:
         self, pool_id: int, week_number: int
     ) -> DutyAssignment | None:
         """Get current confirmed duty assignment for pool and week."""
-        from src.database.models import DutyStatus
-
         stmt = select(DutyAssignment).where(
             and_(
                 DutyAssignment.pool_id == pool_id,
@@ -378,9 +385,6 @@ class DutyRepository:
 
     async def get_current_confirmed_duty_by_group(self, group_id: int) -> DutyAssignment | None:
         """Get current confirmed duty assignment for group."""
-        from src.database.models import DutyStatus
-        from datetime import date
-
         current_week = date.today().isocalendar()[1]
 
         # Сначала получаем pool_id для группы
