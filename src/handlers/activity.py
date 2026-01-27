@@ -373,15 +373,8 @@ async def set_activity_for_week_command(message: Message) -> None:
                 await message.answer(f"❌ Дежурный на неделю {week_number}/{year} не найден.")
                 return
 
-            # Verify permissions using pure function
-            if not validate_duty_permissions(duty_assignment, message.from_user.id):
-                if duty_assignment.status != DutyStatus.CONFIRMED:
-                    await message.answer("❌ Дежурство ещё не подтверждено.")
-                else:
-                    await message.answer(
-                        "❌ Вы не являетесь дежурным на эту неделю. "
-                        "Только подтвержденный дежурный может устанавливать активность."
-                    )
+            if duty_assignment.status != DutyStatus.CONFIRMED:
+                await message.answer("❌ Дежурство ещё не подтверждено.")
                 return
 
             # Update activity

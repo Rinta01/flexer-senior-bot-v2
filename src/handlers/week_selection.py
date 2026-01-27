@@ -369,14 +369,6 @@ async def handle_set_activity_week_callback(callback: CallbackQuery) -> None:
             if duty_assignment.status != DutyStatus.CONFIRMED:
                 await callback.message.edit_text(
                     f"❌ Дежурный на {format_week_display(week_number, year)} ещё не подтвердил назначение.\n"
-                    f"Только подтвержденный дежурный может устанавливать активность."
-                )
-                return
-
-            if duty_assignment.user_id != callback.from_user.id:
-                await callback.message.edit_text(
-                    f"❌ Вы не являетесь дежурным на {format_week_display(week_number, year)}.\n"
-                    f"Только подтвержденный дежурный этой недели может устанавливать активность."
                 )
                 return
 

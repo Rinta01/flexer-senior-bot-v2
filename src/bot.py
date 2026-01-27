@@ -181,7 +181,7 @@ class FlexerBot:
             BotCommand(command="activity", description="Дежурный и активность недели"),
             BotCommand(command="force_pick", description="Выбрать дежурного вручную"),
             BotCommand(
-                command="set_activity", description="Установить активность (только дежурный)"
+                command="set_activity", description="Установить активность"
             ),
             BotCommand(command="history", description="История дежурств"),
             BotCommand(command="help", description="Полная справка"),
