@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Script to restore database from backup
-# Usage: ./restore.sh backup_20260127_143547.db
+# Usage: 
+#   ./restore.sh backup_20260127_143547.db   (restore from .db file)
+#   ./restore.sh backup_20260127_143547.sql  (restore from .sql file)
 
 set -e
 
@@ -12,8 +14,11 @@ if [ -z "$BACKUP_FILE" ]; then
     echo "❌ Укажите файл бэкапа для восстановления"
     echo "Использование: ./restore.sh <backup_file>"
     echo ""
-    echo "Доступные бэкапы:"
+    echo "Доступные бэкапы (.db):"
     ls -lh backups/*.db 2>/dev/null | awk '{print "  - " $9 " (" $5 ", " $6 " " $7 ")"}'
+    echo ""
+    echo "Доступные бэкапы (.sql):"
+    ls -lh backups/*.sql 2>/dev/null | awk '{print "  - " $9 " (" $5 ", " $6 " " $7 ")"}'
     exit 1
 fi
 
@@ -46,7 +51,26 @@ fi
 
 # Restore from backup
 echo "🔄 Восстанавливаю базу данных..."
-cp "$BACKUP_FILE" "$DB_FILE"
+
+# Check if it's a SQL dump or DB file
+if [[ "$BACKUP_FILE" == *.sql ]]; then
+    echo "📄 Обнаружен SQL дамп, используем sqlite3..."
+    
+    # Check if sqlite3 is available
+    if ! command -v sqlite3 &> /dev/null; then
+        echo "❌ sqlite3 не найден. Установите его или используйте .db файл"
+        exit 1
+    fi
+    
+    # Remove old database and restore from SQL
+    rm -f "$DB_FILE"
+    sqlite3 "$DB_FILE" < "$BACKUP_FILE"
+    echo "✅ Восстановлено из SQL дампа"
+else
+    # Direct copy for .db files
+    cp "$BACKUP_FILE" "$DB_FILE"
+    echo "✅ Восстановлено из .db файла"
+fi
 
 echo ""
 echo "✅ База данных успешно восстановлена!"
