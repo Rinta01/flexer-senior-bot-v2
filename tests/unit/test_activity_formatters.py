@@ -5,7 +5,6 @@ from datetime import datetime
 from src.database.models import DutyAssignment, DutyStatus, TelegramUser
 from src.handlers.activity import (
     format_activity_info,
-    parse_activity_input,
     parse_datetime,
     validate_duty_permissions,
 )
@@ -65,48 +64,6 @@ class TestParseDateTime:
     def test_parse_empty_strings(self):
         """Test parsing empty strings returns None."""
         result = parse_datetime("", "")
-        assert result is None
-
-
-class TestParseActivityInput:
-    """Tests for parse_activity_input function."""
-
-    def test_parse_valid_input(self):
-        """Test parsing valid activity input."""
-        result = parse_activity_input("Party | Fun event | 15.01.2026 | 19:30")
-        assert result is not None
-        assert result == ("Party", "Fun event", "15.01.2026", "19:30")
-
-    def test_parse_with_extra_spaces(self):
-        """Test parsing input with extra spaces around separators."""
-        result = parse_activity_input("Party  |  Fun event  |  15.01.2026  |  19:30")
-        assert result is not None
-        assert result == ("Party", "Fun event", "15.01.2026", "19:30")
-
-    def test_parse_with_pipe_in_description(self):
-        """Test parsing when description contains pipe character."""
-        # This will split into more than 4 parts - should return None
-        result = parse_activity_input("Party | Fun | Great | 15.01.2026 | 19:30")
-        assert result is None
-
-    def test_parse_missing_parts(self):
-        """Test parsing with missing parts returns None."""
-        result = parse_activity_input("Party | Fun event | 15.01.2026")
-        assert result is None
-
-    def test_parse_empty_part(self):
-        """Test parsing with empty part returns None."""
-        result = parse_activity_input("Party |  | 15.01.2026 | 19:30")
-        assert result is None
-
-    def test_parse_all_empty_parts(self):
-        """Test parsing with all empty parts returns None."""
-        result = parse_activity_input(" | | | ")
-        assert result is None
-
-    def test_parse_empty_string(self):
-        """Test parsing empty string returns None."""
-        result = parse_activity_input("")
         assert result is None
 
 

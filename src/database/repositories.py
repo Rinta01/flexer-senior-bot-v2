@@ -352,7 +352,11 @@ class DutyRepository:
         return result.scalar_one_or_none()
 
     async def update_activity(
-        self, duty_id: int, title: str, description: str, activity_datetime: datetime
+        self,
+        duty_id: int,
+        title: str,
+        description: str | None = None,
+        activity_datetime: datetime | None = None,
     ) -> DutyAssignment | None:
         """Update activity details for duty assignment."""
         stmt = select(DutyAssignment).where(DutyAssignment.id == duty_id)

@@ -1,5 +1,6 @@
 """Activity management handler - for setting weekly activities by confirmed duty."""
 
+import re
 from datetime import datetime, timezone
 
 from aiogram import Router
@@ -70,7 +71,8 @@ def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
         if duty.status == DutyStatus.CONFIRMED:
             response += (
                 f"\n\n💡 {mention}, вы можете добавить информацию о мероприятии:\n"
-                f"<code>/set_activity Название | Описание | Дата | Время</code>"
+                f"<code>/set_activity</code>\n"
+                f"Затем введите название, описание и дату/время."
             )
         elif duty.status == DutyStatus.PENDING:
             response += f"\n\n⏳ Ожидаем подтверждения от дежурного."
@@ -266,26 +268,68 @@ async def show_activity_command(message: Message) -> None:
         await message.answer("❌ Произошла ошибка при обработке команды.")
 
 
-def parse_activity_input(text: str) -> tuple[str, str, str, str] | None:
+def parse_activity_multiline(text: str) -> tuple[str, str, str, str] | None:
     """
-    Parse activity input string into components.
+    Parse activity input from multiline format.
+
+    Format:
+    Line 1: Title (required)
+    Lines 2-N-1: Description (optional, everything between title and date)
+    Last line: Date Time (optional, must contain date pattern)
+
+    Examples:
+        "Боулинг"
+        ->  ("Боулинг", "", "", "")
+
+        "Боулинг
+        Идём играть в боулинг на Невском"
+        -> ("Боулинг", "Идём играть в боулинг на Невском", "", "")
+
+        "Боулинг
+        Идём играть в боулинг на Невском
+        28.01 19:00"
+        -> ("Боулинг", "Идём играть в боулинг на Невском", "28.01", "19:00")
 
     Args:
-        text: Input string in format "Title | Description | Date | Time"
+        text: Multiline input string
 
     Returns:
         Tuple of (title, description, date_str, time_str) or None if invalid
     """
-    parts = [part.strip() for part in text.split("|")]
-    if len(parts) != 4:
+    lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
+
+    if not lines:
         return None
 
-    title, description, date_str, time_str = parts
+    # First line is always title
+    title = lines[0]
 
-    if not title or not description or not date_str or not time_str:
-        return None
+    if len(lines) == 1:
+        # Only title provided
+        return (title, "", "", "")
 
-    return title, description, date_str, time_str
+    # Try to find date/time in last line
+    last_line = lines[-1]
+    date_pattern = r"\d{1,2}\.\d{1,2}\.?\d{0,4}"  # Matches: 28.01, 28.01.2026
+    time_pattern = r"\d{1,2}[:\-]\d{2}"  # Matches: 19:00, 19-30
+
+    has_date = re.search(date_pattern, last_line)
+    has_time = re.search(time_pattern, last_line)
+
+    if has_date or has_time:
+        # Last line contains date/time
+        description_lines = lines[1:-1]
+        description = "\n".join(description_lines) if description_lines else ""
+
+        # Extract date and time from last line
+        date_str = has_date.group(0) if has_date else ""
+        time_str = has_time.group(0) if has_time else ""
+
+        return (title, description, date_str, time_str)
+    else:
+        # Last line is part of description, no date/time
+        description = "\n".join(lines[1:])
+        return (title, description, "", "")
 
 
 def validate_duty_permissions(duty: DutyAssignment, user_id: int) -> bool:
@@ -329,30 +373,44 @@ async def set_activity_for_week_command(message: Message) -> None:
         if not command_text:
             await message.answer(
                 "❌ Введите детали активности после команды.\n\n"
-                f"📝 Формат: /set_activity_for_{year}_{week_number} <название> | <описание> | <дата> | <время>"
+                "📝 <b>Формат:</b>\n"
+                f"<code>/set_activity_for_{year}_{week_number}\n"
+                "Название\n"
+                "Описание (необязательно)\n"
+                "28.01 19:00 (необязательно)</code>\n\n"
+                "💡 Описание, дата и время необязательны!",
+                parse_mode="HTML",
             )
             return
 
-        # Parse input using pure function
-        parsed = parse_activity_input(command_text)
+        # Parse multiline format
+        parsed = parse_activity_multiline(command_text)
+
         if not parsed:
             await message.answer(
-                "❌ Неверный формат. Нужно 4 части, разделенные символом |:\n"
-                "<code>Название | Описание | Дата | Время</code>"
+                "❌ Неверный формат.\n\n"
+                "📝 <b>Формат:</b>\n"
+                "<code>Название\n"
+                "Описание (необязательно)\n"
+                "28.01 19:00 (необязательно)</code>\n\n"
+                "💡 Минимум нужно указать название активности!",
+                parse_mode="HTML",
             )
             return
 
         title, description, date_str, time_str = parsed
 
-        # Parse date and time
-        activity_datetime = parse_datetime(date_str, time_str)
-        if not activity_datetime:
-            await message.answer(
-                "❌ Неверный формат даты или времени.\n\n"
-                "Поддерживаемые форматы даты: 15.01.2026, 15.01\n"
-                "Поддерживаемые форматы времени: 19:30, 19-30"
-            )
-            return
+        # Parse date and time if provided
+        activity_datetime = None
+        if date_str and time_str:
+            activity_datetime = parse_datetime(date_str, time_str)
+            if not activity_datetime:
+                await message.answer(
+                    "❌ Неверный формат даты или времени.\n\n"
+                    "Поддерживаемые форматы даты: 15.01.2026, 15.01\n"
+                    "Поддерживаемые форматы времени: 19:30, 19-30"
+                )
+                return
 
         async with db_manager.async_session() as session:
             pool_repo = PoolRepository(session)
@@ -381,26 +439,35 @@ async def set_activity_for_week_command(message: Message) -> None:
             updated_duty = await duty_repo.update_activity(
                 duty_id=duty_assignment.id,
                 title=title,
-                description=description,
+                description=description if description else None,
                 activity_datetime=activity_datetime,
             )
 
             if updated_duty:
-                formatted_datetime = activity_datetime.strftime("%d.%m.%Y в %H:%M")
+                # Build response message
+                response_parts = [
+                    f"✅ <b>Активность на неделю {week_number} установлена!</b>\n",
+                    f"🎯 <b>{title}</b>",
+                ]
 
-                response = (
-                    f"✅ <b>Активность на неделю {week_number} установлена!</b>\n\n"
-                    f"🎯 <b>{title}</b>\n\n"
-                    f"📝 <b>Описание:</b>\n{description}\n\n"
-                    f"📅 <b>Дата и время:</b> {formatted_datetime}\n\n"
-                    f"Установлено дежурным: {message.from_user.first_name}"
-                )
+                if description:
+                    response_parts.append(f"\n\n📝 <b>Описание:</b>\n{description}")
+
+                if activity_datetime:
+                    formatted_datetime = activity_datetime.strftime("%d.%m.%Y в %H:%M")
+                    response_parts.append(f"\n\n📅 <b>Дата и время:</b> {formatted_datetime}")
+                else:
+                    formatted_datetime = "не указано"
+
+                response_parts.append(f"\n\nУстановлено: {message.from_user.first_name}")
+
+                response = "".join(response_parts)
 
                 await message.answer(response, parse_mode="HTML")
 
                 logger.info(
                     f"Activity set by user {message.from_user.id} for duty {duty_assignment.id} "
-                    f"(week {week_number}/{year}): {title} on {formatted_datetime}"
+                    f"(week {week_number}/{year}): {title}, datetime: {formatted_datetime}"
                 )
             else:
                 await message.answer("❌ Не удалось установить активность. Попробуйте позже.")
