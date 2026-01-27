@@ -1,5 +1,3 @@
-"""Docker configuration for development."""
-
 FROM python:3.12-slim
 
 # Set working directory
@@ -12,11 +10,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy project files
 COPY pyproject.toml .
+COPY README.md .
 COPY src/ ./src/
 COPY .env.example ./.env
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -e ".[dev,db]"
+# Install Python dependencies from pyproject.toml
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir .
 
 # Create non-root user
 RUN useradd -m -u 1000 bot && chown -R bot:bot /app
