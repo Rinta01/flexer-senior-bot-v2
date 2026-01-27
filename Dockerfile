@@ -18,8 +18,12 @@ COPY .env.example ./.env
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
-# Create non-root user
-RUN useradd -m -u 1000 bot && chown -R bot:bot /app
+# Create data and backups directories with proper permissions
+RUN mkdir -p /app/data /app/backups
+
+# Create non-root user and set ownership
+RUN useradd -m -u 1000 bot && \
+    chown -R bot:bot /app
 USER bot
 
 # Run bot
