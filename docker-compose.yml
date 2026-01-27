@@ -3,7 +3,7 @@ services:
     build: .
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
-      DATABASE_URL: sqlite+aiosqlite:///./flexer_senior.db
+      DATABASE_URL: sqlite+aiosqlite:////app/data/flexer_senior.db
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ENVIRONMENT: ${ENVIRONMENT:-development}
       WEEKLY_DUTY_DAY: ${WEEKLY_DUTY_DAY:-0}
@@ -11,7 +11,5 @@ services:
       WEEKLY_DUTY_MINUTE: ${WEEKLY_DUTY_MINUTE:-0}
     volumes:
       - ./data:/app/data
+      - ./backups:/app/backups
     restart: unless-stopped
-
-volumes:
-  data:
