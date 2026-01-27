@@ -3,14 +3,16 @@
 import re
 from datetime import datetime, timezone
 
-from aiogram import Router
-from aiogram.filters import Command
+from aiogram import F, Router
+from aiogram.filters import Command, StateFilter
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from src.database.engine import db_manager
 from src.database.models import DutyAssignment, DutyStatus, TelegramUser
 from src.database.repositories import DutyRepository, PoolRepository
 from src.keyboards.week_selector import create_week_selector_keyboard
+from src.states.activity import ActivityStates
 from src.utils.formatters import format_duty_status, format_user_mention, get_week_date_range
 from src.utils.logger import setup_logging
 
@@ -71,8 +73,7 @@ def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
         if duty.status == DutyStatus.CONFIRMED:
             response += (
                 f"\n\n💡 {mention}, вы можете добавить информацию о мероприятии:\n"
-                f"<code>/set_activity</code>\n"
-                f"Затем введите название, описание и дату/время."
+                f"Используйте <code>/set_activity</code> и пришлите данные ответным сообщением на сообщение бота."
             )
         elif duty.status == DutyStatus.PENDING:
             response += f"\n\n⏳ Ожидаем подтверждения от дежурного."
@@ -346,45 +347,61 @@ def validate_duty_permissions(duty: DutyAssignment, user_id: int) -> bool:
     return duty.user_id == user_id and duty.status == DutyStatus.CONFIRMED
 
 
-@router.message(lambda message: message.text and message.text.startswith("/set_activity_for_"))
-async def set_activity_for_week_command(message: Message) -> None:
+@router.message(
+    StateFilter(ActivityStates.waiting_for_activity),
+    F.chat.type.in_({"group", "supergroup"}),
+    F.text,
+)
+async def handle_activity_input(message: Message, state: FSMContext) -> None:
     """
-    Handle /set_activity_for_{year}_{week} command - set activity details for specific week.
+    Handle activity input when user replies to the prompt message.
 
-    Format: /set_activity_for_2026_4 <title> | <description> | <date> | <time>
+    This handler requires the user to reply to the bot's prompt message.
     """
-    if not message.chat or message.chat.id > 0 or not message.text or not message.from_user:
+    if not message.text or not message.from_user or not message.chat:
         return
 
     try:
-        # Parse year and week from command
-        command_parts = message.text.split()[0].split("_")
-        if len(command_parts) < 5:
-            await message.answer("❌ Неверный формат команды.")
+        # Get saved state data
+        data = await state.get_data()
+        year = data.get("year")
+        week_number = data.get("week_number")
+        duty_id = data.get("duty_id")
+        chat_id = data.get("chat_id")
+        prompt_message_id = data.get("prompt_message_id")
+        expected_user_id = data.get("user_id")
+
+        # Validate we have all required data
+        if not all([year, week_number, duty_id, chat_id, prompt_message_id]):
+            await message.answer(
+                "❌ Ошибка: данные о выбранной неделе утеряны. Попробуйте /set_activity снова."
+            )
+            await state.clear()
             return
 
-        year = int(command_parts[3])
-        week_number = int(command_parts[4])
-
-        # Parse activity details
-        command_text = (
-            message.text[message.text.find(" ") + 1 :].strip() if " " in message.text else ""
-        )
-        if not command_text:
+        # Type check for duty_id to satisfy type checker
+        if not isinstance(duty_id, int):
             await message.answer(
-                "❌ Введите детали активности после команды.\n\n"
-                "📝 <b>Формат:</b>\n"
-                f"<code>/set_activity_for_{year}_{week_number}\n"
-                "Название\n"
-                "Описание (необязательно)\n"
-                "28.01 19:00 (необязательно)</code>\n\n"
-                "💡 Описание, дата и время необязательны!",
-                parse_mode="HTML",
+                "❌ Ошибка: некорректный идентификатор дежурства. Попробуйте /set_activity снова."
+            )
+            await state.clear()
+            return
+
+        # Check if user is the one who initiated the command
+        if message.from_user.id != expected_user_id:
+            # Ignore messages from other users silently
+            return
+
+        # Check if this is a reply to the prompt message
+        if not message.reply_to_message or message.reply_to_message.message_id != prompt_message_id:
+            await message.answer(
+                "❌ Пожалуйста, ответьте на детали активности ответным сообщением",
+                reply_to_message_id=prompt_message_id,
             )
             return
 
-        # Parse multiline format
-        parsed = parse_activity_multiline(command_text)
+        # Parse activity details
+        parsed = parse_activity_multiline(message.text)
 
         if not parsed:
             await message.answer(
@@ -395,6 +412,7 @@ async def set_activity_for_week_command(message: Message) -> None:
                 "28.01 19:00 (необязательно)</code>\n\n"
                 "💡 Минимум нужно указать название активности!",
                 parse_mode="HTML",
+                reply_to_message_id=message.message_id,
             )
             return
 
@@ -408,36 +426,17 @@ async def set_activity_for_week_command(message: Message) -> None:
                 await message.answer(
                     "❌ Неверный формат даты или времени.\n\n"
                     "Поддерживаемые форматы даты: 15.01.2026, 15.01\n"
-                    "Поддерживаемые форматы времени: 19:30, 19-30"
+                    "Поддерживаемые форматы времени: 19:30, 19-30",
+                    reply_to_message_id=message.message_id,
                 )
                 return
 
         async with db_manager.async_session() as session:
-            pool_repo = PoolRepository(session)
             duty_repo = DutyRepository(session)
-
-            # Get pool
-            pool = await pool_repo.get_by_id(message.chat.id)
-            if not pool:
-                await message.answer("❌ Пул дежурных не найден.")
-                return
-
-            # Get duty for the week
-            duty_assignment = await duty_repo.get_duty_for_week(
-                pool_id=pool.id, year=year, week_number=week_number
-            )
-
-            if not duty_assignment:
-                await message.answer(f"❌ Дежурный на неделю {week_number}/{year} не найден.")
-                return
-
-            if duty_assignment.status != DutyStatus.CONFIRMED:
-                await message.answer("❌ Дежурство ещё не подтверждено.")
-                return
 
             # Update activity
             updated_duty = await duty_repo.update_activity(
-                duty_id=duty_assignment.id,
+                duty_id=duty_id,
                 title=title,
                 description=description if description else None,
                 activity_datetime=activity_datetime,
@@ -463,18 +462,27 @@ async def set_activity_for_week_command(message: Message) -> None:
 
                 response = "".join(response_parts)
 
-                await message.answer(response, parse_mode="HTML")
+                await message.answer(
+                    response, parse_mode="HTML", reply_to_message_id=message.message_id
+                )
 
                 logger.info(
-                    f"Activity set by user {message.from_user.id} for duty {duty_assignment.id} "
+                    f"Activity set by user {message.from_user.id} for duty {duty_id} "
                     f"(week {week_number}/{year}): {title}, datetime: {formatted_datetime}"
                 )
-            else:
-                await message.answer("❌ Не удалось установить активность. Попробуйте позже.")
 
-    except (ValueError, IndexError) as e:
-        logger.error(f"Error parsing set_activity_for_week command: {e}")
-        await message.answer("❌ Неверный формат команды.")
+                # Clear state
+                await state.clear()
+            else:
+                await message.answer(
+                    "❌ Не удалось установить активность. Попробуйте позже.",
+                    reply_to_message_id=message.message_id,
+                )
+
     except Exception as e:
-        logger.error(f"Error in set_activity_for_week_command: {e}", exc_info=True)
-        await message.answer("❌ Произошла ошибка при установке активности.")
+        logger.error(f"Error in handle_activity_input: {e}", exc_info=True)
+        await message.answer(
+            "❌ Произошла ошибка при установке активности.",
+            reply_to_message_id=message.message_id if message.message_id else None,
+        )
+        await state.clear()

@@ -1,6 +1,7 @@
 """Week selection callback handlers."""
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.database.engine import db_manager
@@ -13,6 +14,7 @@ from src.database.repositories import (
 from src.keyboards.week_selector import format_week_display, parse_week_callback
 from src.services.duty_manager import DutyManager
 from src.services.notification import NotificationService
+from src.states.activity import ActivityStates
 from src.utils.formatters import get_week_date_range
 from src.utils.logger import setup_logging
 
@@ -308,7 +310,7 @@ async def handle_activity_week_callback(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("set_activity_week:"))
-async def handle_set_activity_week_callback(callback: CallbackQuery) -> None:
+async def handle_set_activity_week_callback(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle week selection for /set_activity command."""
     try:
         if (
@@ -373,25 +375,39 @@ async def handle_set_activity_week_callback(callback: CallbackQuery) -> None:
                 return
 
             # Prompt user to enter activity details
-            await callback.message.edit_text(
+            prompt_message = await callback.message.edit_text(
                 f"✅ Неделя выбрана: {format_week_display(week_number, year)}\n\n"
-                f"Теперь отправьте детали активности:\n\n"
-                f"📝 <b>Формат:</b>\n"
-                f"<code>/set_activity_for_{year}_{week_number}\n"
-                f"Название\n"
+                f"📝 <b>Ответьте на это сообщение</b> (через Reply) с деталями активности:\n\n"
+                f"<b>Формат:</b>\n"
+                f"<code>Название\n"
                 f"Описание (необязательно)\n"
                 f"28.01 19:00 (необязательно)</code>\n\n"
                 f"<b>Пример:</b>\n"
-                f"<code>/set_activity_for_{year}_{week_number}\n"
-                f"Игра в мафию\n"
+                f"<code>Игра в мафию\n"
                 f"Играем в кафе Пушкин\n"
                 f"15.01 19:30</code>\n\n"
                 f"💡 Описание, дата и время необязательны - можно указать только название!",
                 parse_mode="HTML",
             )
 
+            # Check if edit_text returned a Message (not just True)
+            if not isinstance(prompt_message, Message):
+                await callback.message.answer("❌ Ошибка при отправке сообщения.")
+                return
+
+            # Save week info and message_id to state
+            await state.set_state(ActivityStates.waiting_for_activity)
+            await state.update_data(
+                year=year,
+                week_number=week_number,
+                duty_id=duty_assignment.id,
+                chat_id=callback.message.chat.id,
+                prompt_message_id=prompt_message.message_id,
+                user_id=callback.from_user.id,
+            )
+
             logger.info(
-                f"Activity form prompted for week {week_number}/{year}, user {callback.from_user.id} "
+                f"Activity state set for week {week_number}/{year}, user {callback.from_user.id} "
                 f"in group {callback.message.chat.id}"
             )
 

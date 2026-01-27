@@ -5,6 +5,7 @@ import asyncio
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums.parse_mode import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 from apscheduler.schedulers.asyncio import (  # pyright: ignore[reportMissingTypeStubs]
     AsyncIOScheduler,
@@ -42,7 +43,8 @@ class FlexerBot:
             token=settings.BOT_TOKEN,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         )
-        self.dp = Dispatcher()
+        # Use MemoryStorage for FSM
+        self.dp = Dispatcher(storage=MemoryStorage())
         self.scheduler: AsyncIOScheduler | None = None
         self.setup_handlers()
         self.setup_middleware()
@@ -180,9 +182,7 @@ class FlexerBot:
             BotCommand(command="pick", description="Выбрать дежурного случайно"),
             BotCommand(command="activity", description="Дежурный и активность недели"),
             BotCommand(command="force_pick", description="Выбрать дежурного вручную"),
-            BotCommand(
-                command="set_activity", description="Установить активность"
-            ),
+            BotCommand(command="set_activity", description="Установить активность"),
             BotCommand(command="history", description="История дежурств"),
             BotCommand(command="help", description="Полная справка"),
         ]
