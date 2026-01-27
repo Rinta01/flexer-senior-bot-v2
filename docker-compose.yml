@@ -13,3 +13,12 @@ services:
       - ./data:/app/data
       - ./backups:/app/backups
     restart: unless-stopped
+    develop:
+      watch:
+        - action: sync
+          path: ./src
+          target: /app/src
+          ignore:
+            - __pycache__/
+        - action: rebuild
+          path: ./pyproject.toml
