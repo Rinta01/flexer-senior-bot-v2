@@ -34,6 +34,7 @@ class NotificationService:
         assignment_id: int,
         is_automatic: bool = False,
         year: int | None = None,
+        message_to_edit=None,
     ) -> bool:
         """
         Announce duty assignment to group with confirmation buttons.
@@ -45,6 +46,7 @@ class NotificationService:
             assignment_id: Duty assignment ID
             is_automatic: Whether this is automatic weekly selection
             year: Year of the week (defaults to current year)
+            message_to_edit: Optional Message object to edit instead of sending new
 
         Returns:
             True if successful
@@ -90,13 +92,20 @@ class NotificationService:
                 ]
             )
 
-            # Send message
-            message = await self.bot.send_message(
-                chat_id=group_id,
-                text=message_text,
-                parse_mode="HTML",
-                reply_markup=keyboard,
-            )
+            # Send or edit message
+            if message_to_edit:
+                message = await message_to_edit.edit_text(
+                    text=message_text,
+                    parse_mode="HTML",
+                    reply_markup=keyboard,
+                )
+            else:
+                message = await self.bot.send_message(
+                    chat_id=group_id,
+                    text=message_text,
+                    parse_mode="HTML",
+                    reply_markup=keyboard,
+                )
 
             # Update message ID in database
             await self.duty_repo.update_message_id(assignment_id, message.message_id)

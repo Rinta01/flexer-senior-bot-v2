@@ -106,14 +106,10 @@ async def handle_pick_week_callback(callback: CallbackQuery) -> None:
                 assignment_id=result["assignment_id"],
                 is_automatic=False,
                 year=year,
+                message_to_edit=callback.message,
             )
 
             if success:
-                user_mention = f"@{user.username}" if user.username else user.first_name
-                await callback.message.edit_text(
-                    f"✅ Дежурный на {format_week_display(week_number, year)} выбран: {user_mention}\n\n"
-                    f"Ожидается подтверждение."
-                )
                 logger.info(
                     f"Random duty selected for week {week_number}/{year}: user {user.user_id} "
                     f"in pool {pool.id}"
@@ -225,13 +221,10 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
                 assignment_id=result["assignment_id"],
                 is_automatic=False,
                 year=year,
+                message_to_edit=callback.message,
             )
 
             if success:
-                await callback.message.edit_text(
-                    f"✅ Уведомление отправлено пользователю @{username} на {format_week_display(week_number, year)}.\n\n"
-                    f"Ждем, пока @{username} проснется и нажмет на кнопочку"
-                )
                 logger.info(
                     f"Force picked duty for week {week_number}/{year}: user @{username} (ID {target_user.user_id}) "
                     f"in pool {pool.id}"
