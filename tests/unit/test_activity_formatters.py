@@ -1,9 +1,11 @@
 """Unit tests for activity.py pure functions."""
 
 from datetime import datetime
+from datetime import timedelta
 
 from src.database.models import DutyAssignment, DutyStatus, TelegramUser
 from src.handlers.activity import (
+    build_calendar_links_keyboard,
     format_activity_info,
     parse_datetime,
     validate_duty_permissions,
@@ -22,6 +24,8 @@ class TestParseDateTime:
         assert result.day == 15
         assert result.hour == 19
         assert result.minute == 30
+        assert result.tzinfo is not None
+        assert result.utcoffset() == timedelta(hours=3)
 
     def test_parse_short_date_with_colon_time(self):
         """Test parsing short date (no year) with colon time."""
@@ -102,6 +106,56 @@ class TestValidateDutyPermissions:
             status=DutyStatus.PENDING,
         )
         assert validate_duty_permissions(duty, 456) is False
+
+
+class TestCalendarLinksKeyboard:
+    """Tests for calendar links keyboard."""
+
+    def test_keyboard_has_google_calendar_button(self):
+        """Test Google Calendar button is shown."""
+        duty = DutyAssignment(
+            id=42,
+            pool_id=123,
+            user_id=456,
+            week_number=5,
+            assignment_date=datetime(2026, 1, 26),
+        )
+        user = TelegramUser(user_id=456, first_name="John", username="john")
+
+        keyboard = build_calendar_links_keyboard(
+            duty=duty,
+            title="Лазертаг",
+            description="Описание",
+            activity_datetime=parse_datetime("25.05.2026", "18:00"),
+            location="Арена",
+            user=user,
+        )
+
+        buttons = keyboard.inline_keyboard[0]
+        assert len(buttons) == 1
+        assert buttons[0].text == "🗓 Добавить в Google Calendar"
+        assert buttons[0].url.startswith("https://calendar.google.com/calendar/render?")
+
+    def test_keyboard_missing_when_datetime_is_missing(self):
+        """Test Google Calendar button is not shown without parsed datetime."""
+        duty = DutyAssignment(
+            id=42,
+            pool_id=123,
+            user_id=456,
+            week_number=5,
+            assignment_date=datetime(2026, 1, 26),
+        )
+
+        keyboard = build_calendar_links_keyboard(
+            duty=duty,
+            title="Лазертаг",
+            description="Описание",
+            activity_datetime=None,
+            location="Арена",
+            user=None,
+        )
+
+        assert keyboard is None
 
     def test_invalid_permissions_declined_status(self):
         """Test validation fails for declined duty."""
