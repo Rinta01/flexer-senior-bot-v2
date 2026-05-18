@@ -3,6 +3,7 @@
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.database.engine import db_manager
 from src.database.models import DutyStatus
@@ -10,7 +11,9 @@ from src.database.repositories import (
     DutyRepository,
     PoolRepository,
     UserRepository,
+    UserPoolRepository,
 )
+from src.keyboards.force_pick import format_force_pick_user_name
 from src.keyboards.week_selector import format_week_display, parse_week_callback
 from src.services.duty_manager import DutyManager
 from src.services.notification import NotificationService
@@ -139,11 +142,12 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
         data = parse_week_callback(callback.data)
         year = data["year"]
         week_number = data["week"]
+        user_id_raw = data.get("user_id")
         username = data.get("username")
         force = data.get("force") == "true"  # Convert string "true" to boolean
 
-        if not username:
-            await callback.answer("❌ Ошибка: username не указан", show_alert=True)
+        if not user_id_raw and not username:
+            await callback.answer("❌ Ошибка: пользователь не указан", show_alert=True)
             return
 
         # Answer callback
@@ -159,11 +163,27 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
 
             # Find user
             user_repo = UserRepository(session)
-            target_user = await user_repo.get_by_username(username)
+            if user_id_raw:
+                try:
+                    user_id = int(user_id_raw)
+                except ValueError:
+                    await callback.message.edit_text("❌ Ошибка: некорректный пользователь.")
+                    return
+                target_user = await user_repo.get_by_id(user_id)
+            else:
+                target_user = await user_repo.get_by_username(username)
 
             if not target_user:
+                await callback.message.edit_text("❌ Пользователь не найден в системе.")
+                return
+
+            user_display = format_force_pick_user_name(target_user)
+
+            user_pool_repo = UserPoolRepository(session)
+            user_in_pool = await user_pool_repo.get_user_in_pool(pool.id, target_user.user_id)
+            if not user_in_pool:
                 await callback.message.edit_text(
-                    f"❌ Пользователь @{username} не найден в системе."
+                    f"❌ {user_display} больше не состоит в пуле дежурных."
                 )
                 return
 
@@ -175,7 +195,7 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
 
             if not result:
                 await callback.message.edit_text(
-                    f"❌ Не удалось назначить @{username} дежурным на {format_week_display(week_number, year)}.\n"
+                    f"❌ Не удалось назначить {user_display} дежурным на {format_week_display(week_number, year)}.\n"
                     f"Возможно, на эту неделю уже есть подтвержденный дежурный."
                 )
                 return
@@ -187,23 +207,37 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
                     "pending": "ожидает подтверждения",
                     "confirmed": "подтвержден",
                     "skipped": "отказался от дежурства",
+                    "declined": "отказался от дежурства",
+                    "force_removed": "заменен ранее",
                 }.get(existing_status, "неизвестный статус")
 
-                # Create confirmation keyboard
-                from aiogram.utils.keyboard import InlineKeyboardBuilder
+                existing_user_display = "текущий дежурный"
+                existing_duty = result.get("existing_duty")
+                if existing_duty:
+                    existing_user = await user_repo.get_by_id(existing_duty.user_id)
+                    if existing_user:
+                        existing_user_display = format_force_pick_user_name(existing_user)
 
                 builder = InlineKeyboardBuilder()
                 builder.button(
                     text="✅ Да, заменить",
-                    callback_data=f"force_pick_week:{year}:{week_number}:username:{username}:force:true",
+                    callback_data=(
+                        f"force_pick_week:{year}:{week_number}:"
+                        f"user_id:{target_user.user_id}:force:true"
+                    ),
+                )
+                builder.button(
+                    text="⬅️ Назад",
+                    callback_data=f"force_pick_user:{target_user.user_id}",
                 )
                 builder.button(text="❌ Отмена", callback_data="cancel_force_pick")
-                builder.adjust(2)
+                builder.adjust(1, 2)
 
                 await callback.message.edit_text(
                     f"⚠️ ВНИМАНИЕ!\n\n"
-                    f"На {format_week_display(week_number, year)} уже назначен дежурный ({status_text}).\n\n"
-                    f"Вы уверены, что хотите заменить текущего дежурного на @{username}?",
+                    f"На {format_week_display(week_number, year)} уже назначен "
+                    f"{existing_user_display} ({status_text}).\n\n"
+                    f"Заменить его на {user_display}?",
                     reply_markup=builder.as_markup(),
                 )
                 return
@@ -226,7 +260,7 @@ async def handle_force_pick_week_callback(callback: CallbackQuery) -> None:
 
             if success:
                 logger.info(
-                    f"Force picked duty for week {week_number}/{year}: user @{username} (ID {target_user.user_id}) "
+                    f"Force picked duty for week {week_number}/{year}: user ID {target_user.user_id} "
                     f"in pool {pool.id}"
                 )
             else:
