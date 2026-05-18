@@ -1,24 +1,31 @@
 """Activity management handler - for setting weekly activities by confirmed duty."""
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from aiogram import F, Router
 from aiogram.filters import Command, StateFilter
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from src.database.engine import db_manager
 from src.database.models import DutyAssignment, DutyStatus, TelegramUser
-from src.database.repositories import DutyRepository, PoolRepository
+from src.database.repositories import DutyRepository, PoolRepository, UserRepository
 from src.keyboards.week_selector import create_week_selector_keyboard
 from src.states.activity import ActivityStates
+from src.utils.calendar import (
+    build_activity_description_for_storage,
+    build_google_calendar_url,
+    extract_location_from_description,
+)
 from src.utils.formatters import format_duty_status, format_user_mention, get_week_date_range
 from src.utils.logger import setup_logging
 
 logger = setup_logging(__name__)
 
 router = Router()
+
+CHAT_TIMEZONE = timezone(timedelta(hours=3), "UTC+03:00")
 
 
 def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
@@ -50,6 +57,9 @@ def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
 
     # Add activity info if set
     if duty.activity_title:
+        activity_description, activity_location = extract_location_from_description(
+            duty.activity_description
+        )
         activity_time = ""
         if duty.activity_datetime:
             activity_time = duty.activity_datetime.strftime("%d.%m.%Y в %H:%M")
@@ -58,8 +68,11 @@ def format_activity_info(duty: DutyAssignment, user: TelegramUser) -> str:
             f"\n\n📅 <b>Активность недели:</b>\n" f"<b>Название:</b> {duty.activity_title}\n"
         )
 
-        if duty.activity_description:
-            response += f"<b>Описание:</b> {duty.activity_description}\n"
+        if activity_description:
+            response += f"<b>Описание:</b> {activity_description}\n"
+
+        if activity_location:
+            response += f"<b>Место:</b> {activity_location}\n"
 
         if activity_time:
             response += f"<b>Когда:</b> {activity_time}\n"
@@ -130,7 +143,9 @@ def parse_datetime(date_str: str, time_str: str) -> datetime | None:
 
         # Объединяем дату и время и добавляем timezone
         combined_datetime = parsed_date.replace(
-            hour=parsed_time.hour, minute=parsed_time.minute, tzinfo=timezone.utc
+            hour=parsed_time.hour,
+            minute=parsed_time.minute,
+            tzinfo=CHAT_TIMEZONE,
         )
         return combined_datetime
 
@@ -298,9 +313,18 @@ def parse_activity_multiline(text: str) -> tuple[str, str, str, str] | None:
         Tuple of (title, description, date_str, time_str) or None if invalid
     """
     lines = [line.strip() for line in text.strip().split("\n") if line.strip()]
+    lines = [line for line in lines if not is_activity_placeholder_line(line)]
 
     if not lines:
         return None
+
+    labeled_result = parse_labeled_activity_lines(lines)
+    if labeled_result:
+        return labeled_result
+
+    positional_result = parse_positional_activity_lines(lines)
+    if positional_result:
+        return positional_result
 
     # First line is always title
     title = lines[0]
@@ -333,6 +357,144 @@ def parse_activity_multiline(text: str) -> tuple[str, str, str, str] | None:
         return (title, description, "", "")
 
 
+def parse_positional_activity_lines(lines: list[str]) -> tuple[str, str, str, str] | None:
+    """Parse strict one-line-per-field activity format.
+
+    Line 1: title
+    Line 2: description
+    Line 3: location
+    Line 4: date/time
+    """
+    if len(lines) < 4:
+        return None
+
+    title = lines[0]
+    description = lines[1]
+    location = lines[2]
+    datetime_line = lines[3]
+
+    date_pattern = r"\d{1,2}[.\-]\d{1,2}(?:[.\-]\d{0,4})?"
+    time_pattern = r"\d{1,2}[:\-]\d{2}"
+
+    date_match = re.search(date_pattern, datetime_line)
+    time_match = re.search(time_pattern, datetime_line)
+
+    date_str = date_match.group(0) if date_match else ""
+    time_str = time_match.group(0) if time_match else ""
+
+    if location:
+        description = f"{description}\nМесто: {location}".strip()
+
+    return (title, description, date_str, time_str)
+
+
+def is_activity_placeholder_line(line: str) -> bool:
+    """Return True for prompt placeholder lines that should not become activity data."""
+    normalized = line.strip().lower()
+    return normalized in {
+        "название",
+        "описание (необязательно)",
+        "место",
+        "место проведения",
+        "место: адрес или место встречи (необязательно)",
+        "адрес или место встречи (необязательно)",
+        "дата",
+        "время",
+        "дата и время",
+        "28.01 19:00 (необязательно)",
+    }
+
+
+def parse_labeled_activity_lines(lines: list[str]) -> tuple[str, str, str, str] | None:
+    """Parse activity lines with labels like 'Название:', 'Дата:', 'Время:'."""
+    title = ""
+    description_lines = []
+    date_str = ""
+    time_str = ""
+    location = ""
+    found_label = False
+
+    date_pattern = r"\d{1,2}[.\-]\d{1,2}(?:[.\-]\d{2,4})?"
+    time_pattern = r"\d{1,2}[:\-]\d{2}"
+    label_pattern = re.compile(
+        r"^(название|описание|место(?:\s+проведения)?|локация|где(?:\s+встречаемся)?|адрес|дата|время|когда)(?:\s*[:\-–—]\s*|\s+)(.*)$",
+        re.I,
+    )
+
+    for line in lines:
+        match = label_pattern.match(line)
+        if not match:
+            description_lines.append(line)
+            continue
+
+        found_label = True
+        key = match.group(1).lower()
+        value = match.group(2).strip()
+
+        if not value or is_activity_placeholder_line(value):
+            continue
+
+        if key == "название":
+            title = value
+        elif key == "описание":
+            description_lines.append(value)
+        elif key.startswith("место") or key.startswith("где") or key in {"локация", "адрес"}:
+            location = value
+        elif key == "дата":
+            date_match = re.search(date_pattern, value)
+            if date_match:
+                date_str = date_match.group(0)
+            time_match = re.search(time_pattern, value)
+            if time_match:
+                time_str = time_match.group(0)
+        elif key == "время":
+            time_match = re.search(time_pattern, value)
+            if time_match:
+                time_str = time_match.group(0)
+        elif key == "когда":
+            date_match = re.search(date_pattern, value)
+            time_match = re.search(time_pattern, value)
+            if date_match:
+                date_str = date_match.group(0)
+            if time_match:
+                time_str = time_match.group(0)
+
+    if not found_label:
+        return None
+
+    description = "\n".join(line for line in description_lines if line.strip())
+    if location:
+        description = f"{description}\nМесто: {location}".strip()
+
+    return (title or "Активность недели", description, date_str, time_str)
+
+
+def extract_activity_location(description: str) -> tuple[str, str]:
+    """Extract optional location from description lines.
+
+    Supported labels: "Место:", "Локация:", "Где:", "Адрес:".
+    Returns a tuple of (clean_description, location).
+    """
+    if not description:
+        return "", ""
+
+    location = ""
+    clean_lines = []
+    location_pattern = re.compile(
+        r"^(?:место(?:\s+проведения)?|локация|где(?:\s+встречаемся)?|адрес)(?:\s*[:\-–—]\s*|\s+)(.+)$",
+        re.I,
+    )
+
+    for line in description.splitlines():
+        match = location_pattern.match(line.strip())
+        if match and not location:
+            location = match.group(1).strip()
+        else:
+            clean_lines.append(line)
+
+    return "\n".join(clean_lines).strip(), location
+
+
 def validate_duty_permissions(duty: DutyAssignment, user_id: int) -> bool:
     """
     Check if user can set activity for this duty.
@@ -345,6 +507,32 @@ def validate_duty_permissions(duty: DutyAssignment, user_id: int) -> bool:
         True if user has permission, False otherwise
     """
     return duty.user_id == user_id and duty.status == DutyStatus.CONFIRMED
+
+
+def build_calendar_links_keyboard(
+    duty: DutyAssignment,
+    title: str,
+    description: str | None,
+    activity_datetime: datetime | None,
+    location: str | None,
+    user: TelegramUser | None,
+) -> InlineKeyboardMarkup | None:
+    """Build calendar link buttons for an activity."""
+    if not activity_datetime:
+        return None
+
+    google_button = InlineKeyboardButton(
+        text="🗓 Добавить в Google Calendar",
+        url=build_google_calendar_url(
+            title=title,
+            description=description,
+            activity_datetime=activity_datetime,
+            location=location,
+            user=user,
+            duty=duty,
+        ),
+    )
+    return InlineKeyboardMarkup(inline_keyboard=[[google_button]])
 
 
 @router.message(
@@ -404,45 +592,37 @@ async def handle_activity_input(message: Message, state: FSMContext) -> None:
         parsed = parse_activity_multiline(message.text)
 
         if not parsed:
-            await message.answer(
-                "❌ Неверный формат.\n\n"
-                "📝 <b>Формат:</b>\n"
-                "<code>Название\n"
-                "Описание (необязательно)\n"
-                "28.01 19:00 (необязательно)</code>\n\n"
-                "💡 Минимум нужно указать название активности!",
-                parse_mode="HTML",
-                reply_to_message_id=message.message_id,
-            )
-            return
+            parsed = ("Активность недели", "", "", "")
 
         title, description, date_str, time_str = parsed
+        title = title.strip() if title.strip() else "Активность недели"
+        description, location = extract_activity_location(description)
 
         # Parse date and time if provided
         activity_datetime = None
+        datetime_parse_failed = False
         if date_str and time_str:
             activity_datetime = parse_datetime(date_str, time_str)
             if not activity_datetime:
-                await message.answer(
-                    "❌ Неверный формат даты или времени.\n\n"
-                    "Поддерживаемые форматы даты: 15.01.2026, 15.01\n"
-                    "Поддерживаемые форматы времени: 19:30, 19-30",
-                    reply_to_message_id=message.message_id,
-                )
-                return
+                datetime_parse_failed = True
+        elif date_str or time_str:
+            datetime_parse_failed = True
 
         async with db_manager.async_session() as session:
             duty_repo = DutyRepository(session)
+            user_repo = UserRepository(session)
+            storage_description = build_activity_description_for_storage(description, location)
 
             # Update activity
             updated_duty = await duty_repo.update_activity(
                 duty_id=duty_id,
                 title=title,
-                description=description if description else None,
+                description=storage_description,
                 activity_datetime=activity_datetime,
             )
 
             if updated_duty:
+                user = await user_repo.get_by_id(updated_duty.user_id)
                 # Build response message
                 response_parts = [
                     f"✅ <b>Активность на неделю {week_number} установлена!</b>\n",
@@ -452,23 +632,42 @@ async def handle_activity_input(message: Message, state: FSMContext) -> None:
                 if description:
                     response_parts.append(f"\n\n📝 <b>Описание:</b>\n{description}")
 
+                if location:
+                    response_parts.append(f"\n\n📍 <b>Место:</b> {location}")
+
                 if activity_datetime:
                     formatted_datetime = activity_datetime.strftime("%d.%m.%Y в %H:%M")
                     response_parts.append(f"\n\n📅 <b>Дата и время:</b> {formatted_datetime}")
                 else:
                     formatted_datetime = "не указано"
+                    if datetime_parse_failed:
+                        response_parts.append(
+                            "\n\n⚠️ Дату или время не удалось распознать, "
+                            "поэтому ссылка на Google Calendar не создана."
+                        )
 
                 response_parts.append(f"\n\nУстановлено: {message.from_user.first_name}")
 
                 response = "".join(response_parts)
-
-                await message.answer(
-                    response, parse_mode="HTML", reply_to_message_id=message.message_id
+                calendar_keyboard = build_calendar_links_keyboard(
+                    duty=updated_duty,
+                    title=title,
+                    description=description or None,
+                    activity_datetime=activity_datetime,
+                    location=location or None,
+                    user=user,
                 )
 
+                await message.answer(
+                    response,
+                    parse_mode="HTML",
+                    reply_to_message_id=message.message_id,
+                    reply_markup=calendar_keyboard if calendar_keyboard else None,
+                )
                 logger.info(
                     f"Activity set by user {message.from_user.id} for duty {duty_id} "
-                    f"(week {week_number}/{year}): {title}, datetime: {formatted_datetime}"
+                    f"(week {week_number}/{year}): {title}, datetime: {formatted_datetime}, "
+                    f"location: {location or 'not specified'}"
                 )
 
                 # Clear state

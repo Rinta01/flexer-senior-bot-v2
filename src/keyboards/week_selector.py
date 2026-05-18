@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from src.utils.formatters import get_week_dates
@@ -33,6 +33,8 @@ def create_week_selector_keyboard(
     weeks_ahead: int = 4,
     extra_data: dict[str, Any] | None = None,
     week_statuses: dict[tuple[int, int], dict[str, bool]] | None = None,
+    back_callback_data: str | None = None,
+    cancel_callback_data: str | None = None,
 ) -> InlineKeyboardMarkup:
     """
     Create inline keyboard for week selection.
@@ -42,6 +44,8 @@ def create_week_selector_keyboard(
         weeks_ahead: Number of weeks ahead to show (default: 4)
         extra_data: Additional data to include in callback (e.g., {"username": "john"})
         week_statuses: Dict mapping (year, week) to {"has_duty": bool, "has_activity": bool}
+        back_callback_data: Optional callback for a "Назад" button
+        cancel_callback_data: Optional callback for a "Отмена" button
 
     Returns:
         InlineKeyboardMarkup with week selection buttons
@@ -92,8 +96,19 @@ def create_week_selector_keyboard(
 
         builder.button(text=button_text, callback_data=callback_data)
 
-    # One button per row for better readability
-    builder.adjust(1)
+    nav_buttons = 0
+    if back_callback_data:
+        builder.button(text="⬅️ Назад", callback_data=back_callback_data)
+        nav_buttons += 1
+    if cancel_callback_data:
+        builder.button(text="❌ Отмена", callback_data=cancel_callback_data)
+        nav_buttons += 1
+
+    if nav_buttons:
+        builder.adjust(*([1] * (weeks_ahead + 1)), nav_buttons)
+    else:
+        # One button per row for better readability
+        builder.adjust(1)
 
     return builder.as_markup()
 
