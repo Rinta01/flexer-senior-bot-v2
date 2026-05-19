@@ -6,9 +6,9 @@ services:
       DATABASE_URL: sqlite+aiosqlite:////app/data/flexer_senior.db
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ENVIRONMENT: ${ENVIRONMENT:-development}
-      WEEKLY_DUTY_DAY: ${WEEKLY_DUTY_DAY:-0}
-      WEEKLY_DUTY_HOUR: ${WEEKLY_DUTY_HOUR:-10}
-      WEEKLY_DUTY_MINUTE: ${WEEKLY_DUTY_MINUTE:-0}
+      WEEKLY_DUTY_ENABLED: ${WEEKLY_DUTY_ENABLED:-true}
+      WEEKLY_DUTY_DAY: ${WEEKLY_DUTY_DAY:-6}
+      WEEKLY_DUTY_TIME: ${WEEKLY_DUTY_TIME:-15:00}
     volumes:
       - ./data:/app/data
       - ./backups:/app/backups

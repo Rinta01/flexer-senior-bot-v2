@@ -3,6 +3,16 @@
 
 cd "$(dirname "$0")"
 
+get_db_path() {
+    if [ -n "$DB_PATH" ]; then
+        echo "$DB_PATH"
+    elif [ -f "data/flexer_senior.db" ]; then
+        echo "data/flexer_senior.db"
+    else
+        echo "flexer_senior.db"
+    fi
+}
+
 case "$1" in
     start)
         echo "🚀 Запуск бота..."
@@ -18,19 +28,49 @@ case "$1" in
         ;;
     check-db)
         echo "📊 Проверка базы данных..."
-        if [ -f "flexer_senior.db" ]; then
+        DB_FILE="$(get_db_path)"
+        if [ -f "$DB_FILE" ]; then
             echo "✅ База данных существует"
-            ls -lh flexer_senior.db
+            ls -lh "$DB_FILE"
             echo ""
             echo "Таблицы в базе данных:"
-            sqlite3 flexer_senior.db ".tables"
+            sqlite3 "$DB_FILE" ".tables"
+            echo ""
+            echo "Количество записей:"
+            for table in $(sqlite3 "$DB_FILE" "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"); do
+                count=$(sqlite3 "$DB_FILE" "SELECT COUNT(*) FROM $table;")
+                echo "  $table: $count"
+            done
+            if sqlite3 "$DB_FILE" "SELECT auto_pick_enabled FROM duty_pools LIMIT 1;" >/dev/null 2>&1; then
+                echo ""
+                echo "Пулы и авто-выбор:"
+                sqlite3 -header -column "$DB_FILE" \
+                    "SELECT id, group_id, group_title, auto_pick_enabled FROM duty_pools ORDER BY id;"
+            else
+                echo ""
+                echo "ℹ️ В duty_pools пока нет auto_pick_enabled."
+                echo "Колонка будет добавлена автоматически при следующем старте бота."
+            fi
         else
-            echo "❌ База данных не найдена"
+            echo "❌ База данных не найдена: $DB_FILE"
+            echo "Можно указать путь явно: DB_PATH=/path/to/flexer_senior.db ./run.sh check-db"
         fi
         ;;
     logs)
         echo "📋 Логи бота (последние 50 строк)..."
-        tail -50 logs/*.log 2>/dev/null || echo "Логи не найдены"
+        if docker compose logs --tail=50 bot 2>/dev/null; then
+            exit 0
+        fi
+
+        shopt -s nullglob
+        log_files=(logs/*.log)
+        if [ ${#log_files[@]} -gt 0 ]; then
+            tail -50 "${log_files[@]}"
+        else
+            echo "Логи не найдены."
+            echo "Если бот запущен через Docker, убедитесь, что Docker daemon запущен."
+            echo "Если бот запущен через ./run.sh start, логи выводятся прямо в текущий терминал."
+        fi
         ;;
     clean)
         echo "🧹 Очистка..."

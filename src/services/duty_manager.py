@@ -486,12 +486,4 @@ class DutyManager:
         Returns:
             datetime for Monday of that week at 00:00
         """
-        jan_first = datetime(year, 1, 1)
-        days_to_monday = (7 - jan_first.weekday()) % 7
-        if jan_first.weekday() > 3:
-            days_to_monday += 7
-
-        first_monday = jan_first + timedelta(days=days_to_monday)
-        target_monday = first_monday + timedelta(weeks=week - 1)
-
-        return target_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+        return datetime.fromisocalendar(year, week, 1)

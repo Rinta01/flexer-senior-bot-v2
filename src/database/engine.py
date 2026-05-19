@@ -2,6 +2,7 @@
 
 from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.config import settings
@@ -45,6 +46,23 @@ class DatabaseManager:
         """Create all database tables."""
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await self._migrate_sqlite_schema(conn)
+
+    async def _migrate_sqlite_schema(self, conn) -> None:
+        """Run lightweight SQLite migrations for existing databases."""
+        if self.engine.dialect.name != "sqlite":
+            return
+
+        result = await conn.execute(text("PRAGMA table_info(duty_pools)"))
+        columns = {row[1] for row in result.fetchall()}
+
+        if "auto_pick_enabled" not in columns:
+            await conn.execute(
+                text(
+                    "ALTER TABLE duty_pools "
+                    "ADD COLUMN auto_pick_enabled BOOLEAN NOT NULL DEFAULT 1"
+                )
+            )
 
     async def drop_tables(self) -> None:
         """Drop all database tables."""

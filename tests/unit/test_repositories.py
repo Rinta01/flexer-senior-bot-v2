@@ -1,10 +1,12 @@
 """Unit tests for database repositories."""
 
+from datetime import datetime
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DutyPool, TelegramUser
-from src.database.repositories import PoolRepository, UserRepository
+from src.database.models import DutyAssignment, DutyPool, DutyStatus, TelegramUser
+from src.database.repositories import DutyRepository, PoolRepository, UserRepository
 
 
 @pytest.mark.asyncio
@@ -51,6 +53,55 @@ async def test_pool_repository_get_or_create(
     assert pool.group_id == sample_group_data["group_id"]
     assert pool.group_title == sample_group_data["group_title"]
     assert pool.is_active is True
+    assert pool.auto_pick_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_pool_repository_get_auto_pick_enabled_pools(db_session: AsyncSession):
+    """Test getting only active pools with scheduler auto-pick enabled."""
+    enabled_pool = DutyPool(
+        group_id=-1,
+        group_title="Enabled",
+        auto_pick_enabled=True,
+        is_active=True,
+    )
+    disabled_pool = DutyPool(
+        group_id=-2,
+        group_title="Disabled",
+        auto_pick_enabled=False,
+        is_active=True,
+    )
+    inactive_pool = DutyPool(
+        group_id=-3,
+        group_title="Inactive",
+        auto_pick_enabled=True,
+        is_active=False,
+    )
+    db_session.add_all([enabled_pool, disabled_pool, inactive_pool])
+    await db_session.commit()
+
+    pool_repo = PoolRepository(db_session)
+    pools = await pool_repo.get_auto_pick_enabled_pools()
+
+    assert [pool.group_id for pool in pools] == [-1]
+
+
+@pytest.mark.asyncio
+async def test_pool_repository_set_auto_pick_enabled(
+    db_session: AsyncSession,
+    sample_group_data: dict,
+):
+    """Test updating scheduler auto-pick flag for a pool."""
+    pool_repo = PoolRepository(db_session)
+    await pool_repo.get_or_create(**sample_group_data)
+
+    updated = await pool_repo.set_auto_pick_enabled(
+        group_id=sample_group_data["group_id"],
+        enabled=False,
+    )
+
+    assert updated is not None
+    assert updated.auto_pick_enabled is False
 
 
 @pytest.mark.asyncio
@@ -73,3 +124,36 @@ async def test_user_repository_update(
 
     assert updated.first_name == "Updated"
     assert updated.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_duty_repository_filters_by_actual_iso_week(db_session: AsyncSession):
+    """Legacy rows with stale week_number should not block the real target week."""
+    pool = DutyPool(group_id=-100, group_title="Test Group")
+    db_session.add(pool)
+    await db_session.flush()
+
+    stale_week_row = DutyAssignment(
+        user_id=1,
+        pool_id=pool.id,
+        week_number=22,
+        assignment_date=datetime(2026, 6, 1),
+        status=DutyStatus.CONFIRMED,
+    )
+    real_week_row = DutyAssignment(
+        user_id=2,
+        pool_id=pool.id,
+        week_number=22,
+        assignment_date=datetime(2026, 5, 25),
+        status=DutyStatus.PENDING,
+    )
+    db_session.add_all([stale_week_row, real_week_row])
+    await db_session.commit()
+
+    duty_repo = DutyRepository(db_session)
+
+    week_22 = await duty_repo.get_duty_for_week(pool.id, 2026, 22)
+    week_23 = await duty_repo.get_duty_for_week(pool.id, 2026, 23)
+
+    assert week_22.user_id == 2
+    assert week_23 is None

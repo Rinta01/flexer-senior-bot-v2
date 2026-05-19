@@ -117,3 +117,10 @@ async def test_get_next_monday():
     next_mon = DutyManager._get_next_monday(sunday)
     expected = datetime(2024, 1, 8)
     assert next_mon.date() == expected.date()
+
+
+def test_get_monday_of_week_uses_iso_calendar():
+    """Test _get_monday_of_week uses real ISO week dates."""
+    assert DutyManager._get_monday_of_week(2026, 22).date().isoformat() == "2026-05-25"
+    assert DutyManager._get_monday_of_week(2026, 23).date().isoformat() == "2026-06-01"
+    assert DutyManager._get_monday_of_week(2027, 1).date().isoformat() == "2027-01-04"

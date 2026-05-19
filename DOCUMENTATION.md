@@ -114,10 +114,10 @@ BOT_TOKEN=your_telegram_bot_token_from_botfather
 # База данных (SQLite по умолчанию)
 DATABASE_URL=sqlite+aiosqlite:///./flexer_senior.db
 
-# Расписание автоматического выбора (опционально, сейчас отключено)
-WEEKLY_DUTY_DAY=0      # 0=Понедельник, 6=Воскресенье
-WEEKLY_DUTY_HOUR=10    # Час в UTC
-WEEKLY_DUTY_MINUTE=0   # Минута
+# Расписание автоматического выбора
+WEEKLY_DUTY_ENABLED=true  # true/false
+WEEKLY_DUTY_DAY=6         # 0=Понедельник, 6=Воскресенье
+WEEKLY_DUTY_TIME=15:00    # Всегда UTC+3
 
 # Логирование
 LOG_LEVEL=INFO
@@ -166,6 +166,7 @@ ENVIRONMENT=production
 | ----------------------- | ---------------------------------------------------------------- | ---------------------- |
 | `/pick`                 | Выбрать дежурного случайно (только для свободных недель)         | Все в группе           |
 | `/force_pick`           | Назначить конкретного пользователя (с подтверждением при замене) | Все в группе           |
+| `/auto_pick`            | Показать/изменить авто-выбор для текущей группы                  | Все в группе           |
 | `/activity`             | Показать дежурного и активность для выбранной недели             | Все в группе           |
 | `/history`              | Показать последние 10 записей о дежурствах                       | Все в группе           |
 
@@ -185,6 +186,12 @@ ENVIRONMENT=production
 
 /force_pick @maria
 → Быстрый вариант: сразу выбор недели для @maria
+
+/auto_pick
+→ Показывает текущий статус авто-выбора для группы
+
+/auto_pick off
+→ Отключает автоматический выбор для группы
 
 /activity
 → Выбор недели через кнопки
@@ -480,6 +487,7 @@ User Command → Handlers → Services → Repositories → Database
 - title (String)                  # Название группы
 - current_cycle (Integer)         # Текущий цикл ротации
 - is_active (Boolean)             # Активен ли пул
+- auto_pick_enabled (Boolean)     # Включен ли автоматический выбор scheduler-ом
 - created_at (DateTime)
 ```
 

@@ -11,6 +11,12 @@ from src.utils.logger import setup_logging
 logger = setup_logging(__name__)
 
 
+def _assignment_matches_iso_week(assignment_date: datetime, year: int, week_number: int) -> bool:
+    """Check an assignment date against an ISO year/week."""
+    iso_year, iso_week, _ = assignment_date.isocalendar()
+    return iso_year == year and iso_week == week_number
+
+
 class UserRepository:
     """Repository for TelegramUser operations."""
 
@@ -133,6 +139,30 @@ class PoolRepository:
         stmt = select(DutyPool)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_auto_pick_enabled_pools(self) -> list[DutyPool]:
+        """
+        Get active pools with automatic duty selection enabled.
+
+        Returns:
+            List of pools where scheduler auto-pick should run.
+        """
+        stmt = select(DutyPool).where(
+            and_(DutyPool.is_active.is_(True), DutyPool.auto_pick_enabled.is_(True))
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def set_auto_pick_enabled(self, group_id: int, enabled: bool) -> DutyPool | None:
+        """Set scheduler auto-pick flag for a pool by Telegram group ID."""
+        pool = await self.get_by_id(group_id)
+        if not pool:
+            return None
+
+        pool.auto_pick_enabled = enabled
+        await self.session.commit()
+        await self.session.refresh(pool)
+        return pool
 
 
 class UserPoolRepository:
@@ -269,8 +299,13 @@ class DutyRepository:
         result = await self.session.execute(stmt)
         duties = result.scalars().all()
 
-        # Filter by year from assignment_date
-        duties_for_year = [duty for duty in duties if duty.assignment_date.year == year]
+        # Filter by actual ISO year/week from assignment_date.
+        # Some legacy rows may have stale week_number values from old date calculations.
+        duties_for_year = [
+            duty
+            for duty in duties
+            if _assignment_matches_iso_week(duty.assignment_date, year, week_number)
+        ]
 
         if not duties_for_year:
             return None
@@ -305,9 +340,12 @@ class DutyRepository:
         result = await self.session.execute(stmt)
         duties = list(result.scalars().all())
 
-        # Filter by year if provided
         if year is not None:
-            duties = [d for d in duties if d.assignment_date.year == year]
+            duties = [
+                duty
+                for duty in duties
+                if _assignment_matches_iso_week(duty.assignment_date, year, week_number)
+            ]
 
         return duties
 
