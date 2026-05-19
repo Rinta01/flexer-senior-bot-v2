@@ -1,10 +1,12 @@
 """Unit tests for database repositories."""
 
+from datetime import datetime
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database.models import DutyPool, TelegramUser
-from src.database.repositories import PoolRepository, UserRepository
+from src.database.models import DutyAssignment, DutyPool, DutyStatus, TelegramUser
+from src.database.repositories import DutyRepository, PoolRepository, UserRepository
 
 
 @pytest.mark.asyncio
@@ -122,3 +124,36 @@ async def test_user_repository_update(
 
     assert updated.first_name == "Updated"
     assert updated.is_active is False
+
+
+@pytest.mark.asyncio
+async def test_duty_repository_filters_by_actual_iso_week(db_session: AsyncSession):
+    """Legacy rows with stale week_number should not block the real target week."""
+    pool = DutyPool(group_id=-100, group_title="Test Group")
+    db_session.add(pool)
+    await db_session.flush()
+
+    stale_week_row = DutyAssignment(
+        user_id=1,
+        pool_id=pool.id,
+        week_number=22,
+        assignment_date=datetime(2026, 6, 1),
+        status=DutyStatus.CONFIRMED,
+    )
+    real_week_row = DutyAssignment(
+        user_id=2,
+        pool_id=pool.id,
+        week_number=22,
+        assignment_date=datetime(2026, 5, 25),
+        status=DutyStatus.PENDING,
+    )
+    db_session.add_all([stale_week_row, real_week_row])
+    await db_session.commit()
+
+    duty_repo = DutyRepository(db_session)
+
+    week_22 = await duty_repo.get_duty_for_week(pool.id, 2026, 22)
+    week_23 = await duty_repo.get_duty_for_week(pool.id, 2026, 23)
+
+    assert week_22.user_id == 2
+    assert week_23 is None

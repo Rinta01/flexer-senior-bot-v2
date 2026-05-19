@@ -11,6 +11,12 @@ from src.utils.logger import setup_logging
 logger = setup_logging(__name__)
 
 
+def _assignment_matches_iso_week(assignment_date: datetime, year: int, week_number: int) -> bool:
+    """Check an assignment date against an ISO year/week."""
+    iso_year, iso_week, _ = assignment_date.isocalendar()
+    return iso_year == year and iso_week == week_number
+
+
 class UserRepository:
     """Repository for TelegramUser operations."""
 
@@ -293,8 +299,13 @@ class DutyRepository:
         result = await self.session.execute(stmt)
         duties = result.scalars().all()
 
-        # Filter by year from assignment_date
-        duties_for_year = [duty for duty in duties if duty.assignment_date.year == year]
+        # Filter by actual ISO year/week from assignment_date.
+        # Some legacy rows may have stale week_number values from old date calculations.
+        duties_for_year = [
+            duty
+            for duty in duties
+            if _assignment_matches_iso_week(duty.assignment_date, year, week_number)
+        ]
 
         if not duties_for_year:
             return None
@@ -329,9 +340,12 @@ class DutyRepository:
         result = await self.session.execute(stmt)
         duties = list(result.scalars().all())
 
-        # Filter by year if provided
         if year is not None:
-            duties = [d for d in duties if d.assignment_date.year == year]
+            duties = [
+                duty
+                for duty in duties
+                if _assignment_matches_iso_week(duty.assignment_date, year, week_number)
+            ]
 
         return duties
 
