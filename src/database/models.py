@@ -62,6 +62,9 @@ class DutyPool(Base):
     group_title: Mapped[str] = mapped_column(String(255))
     current_cycle: Mapped[int] = mapped_column(Integer, default=1)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    auto_pick_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="1", nullable=False
+    )
 
     # Relationships
     users: Mapped[list["UserInPool"]] = relationship(

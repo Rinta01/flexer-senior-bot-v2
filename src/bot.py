@@ -17,6 +17,7 @@ from src.database.engine import db_manager
 from src.database.repositories import PoolRepository
 from src.handlers import (
     activity,
+    auto_pick,
     duty_callbacks,
     force_pick,
     help,
@@ -69,6 +70,7 @@ class FlexerBot:
         self.dp.include_router(join.router)
         self.dp.include_router(leave.router)
         self.dp.include_router(pool.router)
+        self.dp.include_router(auto_pick.router)
         self.dp.include_router(pick.router)  # New: random duty selection
         self.dp.include_router(force_pick.router)
         self.dp.include_router(activity.router)  # Activity management
@@ -113,13 +115,13 @@ class FlexerBot:
         try:
             async with db_manager.async_session() as session:
                 pool_repo = PoolRepository(session)
-                pools = await pool_repo.get_all_pools()
+                pools = await pool_repo.get_auto_pick_enabled_pools()
 
                 if not pools:
-                    logger.info("No pools found for weekly duty selection")
+                    logger.info("No auto-pick enabled pools found for weekly duty selection")
                     return
 
-                logger.info(f"Processing {len(pools)} pools for weekly duty selection")
+                logger.info(f"Processing {len(pools)} auto-pick enabled pools")
 
                 target_year, target_week = get_next_week_for_scheduler()
                 successful_selections = 0
@@ -196,6 +198,7 @@ class FlexerBot:
             BotCommand(command="join", description="Присоединиться к пулу"),
             BotCommand(command="leave", description="Выйти из пула"),
             BotCommand(command="pool", description="Список участников пула"),
+            BotCommand(command="auto_pick", description="Настроить авто-выбор"),
             BotCommand(command="pick", description="Выбрать дежурного случайно"),
             BotCommand(command="activity", description="Дежурный и активность недели"),
             BotCommand(command="force_pick", description="Выбрать дежурного вручную"),

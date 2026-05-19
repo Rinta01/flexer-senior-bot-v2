@@ -134,6 +134,30 @@ class PoolRepository:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_auto_pick_enabled_pools(self) -> list[DutyPool]:
+        """
+        Get active pools with automatic duty selection enabled.
+
+        Returns:
+            List of pools where scheduler auto-pick should run.
+        """
+        stmt = select(DutyPool).where(
+            and_(DutyPool.is_active.is_(True), DutyPool.auto_pick_enabled.is_(True))
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def set_auto_pick_enabled(self, group_id: int, enabled: bool) -> DutyPool | None:
+        """Set scheduler auto-pick flag for a pool by Telegram group ID."""
+        pool = await self.get_by_id(group_id)
+        if not pool:
+            return None
+
+        pool.auto_pick_enabled = enabled
+        await self.session.commit()
+        await self.session.refresh(pool)
+        return pool
+
 
 class UserPoolRepository:
     """Repository for UserInPool operations."""

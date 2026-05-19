@@ -51,6 +51,55 @@ async def test_pool_repository_get_or_create(
     assert pool.group_id == sample_group_data["group_id"]
     assert pool.group_title == sample_group_data["group_title"]
     assert pool.is_active is True
+    assert pool.auto_pick_enabled is True
+
+
+@pytest.mark.asyncio
+async def test_pool_repository_get_auto_pick_enabled_pools(db_session: AsyncSession):
+    """Test getting only active pools with scheduler auto-pick enabled."""
+    enabled_pool = DutyPool(
+        group_id=-1,
+        group_title="Enabled",
+        auto_pick_enabled=True,
+        is_active=True,
+    )
+    disabled_pool = DutyPool(
+        group_id=-2,
+        group_title="Disabled",
+        auto_pick_enabled=False,
+        is_active=True,
+    )
+    inactive_pool = DutyPool(
+        group_id=-3,
+        group_title="Inactive",
+        auto_pick_enabled=True,
+        is_active=False,
+    )
+    db_session.add_all([enabled_pool, disabled_pool, inactive_pool])
+    await db_session.commit()
+
+    pool_repo = PoolRepository(db_session)
+    pools = await pool_repo.get_auto_pick_enabled_pools()
+
+    assert [pool.group_id for pool in pools] == [-1]
+
+
+@pytest.mark.asyncio
+async def test_pool_repository_set_auto_pick_enabled(
+    db_session: AsyncSession,
+    sample_group_data: dict,
+):
+    """Test updating scheduler auto-pick flag for a pool."""
+    pool_repo = PoolRepository(db_session)
+    await pool_repo.get_or_create(**sample_group_data)
+
+    updated = await pool_repo.set_auto_pick_enabled(
+        group_id=sample_group_data["group_id"],
+        enabled=False,
+    )
+
+    assert updated is not None
+    assert updated.auto_pick_enabled is False
 
 
 @pytest.mark.asyncio
