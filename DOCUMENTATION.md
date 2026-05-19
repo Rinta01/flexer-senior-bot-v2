@@ -114,10 +114,10 @@ BOT_TOKEN=your_telegram_bot_token_from_botfather
 # База данных (SQLite по умолчанию)
 DATABASE_URL=sqlite+aiosqlite:///./flexer_senior.db
 
-# Расписание автоматического выбора (опционально, сейчас отключено)
-WEEKLY_DUTY_DAY=0      # 0=Понедельник, 6=Воскресенье
-WEEKLY_DUTY_HOUR=10    # Час в UTC
-WEEKLY_DUTY_MINUTE=0   # Минута
+# Расписание автоматического выбора
+WEEKLY_DUTY_ENABLED=true  # true/false
+WEEKLY_DUTY_DAY=6         # 0=Понедельник, 6=Воскресенье
+WEEKLY_DUTY_TIME=15:00    # Всегда UTC+3
 
 # Логирование
 LOG_LEVEL=INFO

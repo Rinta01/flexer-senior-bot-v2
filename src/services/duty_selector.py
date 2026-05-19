@@ -16,6 +16,8 @@ async def select_and_announce_duty(
     pool_id: int,
     group_id: int,
     is_automatic: bool = False,
+    year: int | None = None,
+    week_number: int | None = None,
 ) -> dict:
     """
     Select and announce duty for a pool.
@@ -29,6 +31,8 @@ async def select_and_announce_duty(
         pool_id: Pool database ID
         group_id: Telegram group ID
         is_automatic: Whether this is an automatic selection (affects messaging)
+        year: Optional target year for a specific week
+        week_number: Optional target ISO week number
 
     Returns:
         Dictionary with:
@@ -39,7 +43,10 @@ async def select_and_announce_duty(
     try:
         # Select duty
         duty_manager = DutyManager(session)
-        result = await duty_manager.select_random_duty(pool_id)
+        if year is not None and week_number is not None:
+            result = await duty_manager.select_random_duty_for_week(pool_id, year, week_number)
+        else:
+            result = await duty_manager.select_random_duty(pool_id)
 
         if not result:
             log_msg = "No users in pool" if is_automatic else "Failed to select duty"
@@ -128,7 +135,7 @@ async def select_and_announce_duty(
             week_number=result["week_number"],
             assignment_id=result["assignment_id"],
             is_automatic=is_automatic,
-            year=None,  # Use current year
+            year=result.get("year"),
         )
 
         if success:

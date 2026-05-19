@@ -11,7 +11,7 @@ def get_schedule_description() -> str:
     """Get schedule description from settings.
 
     Returns:
-        Formatted schedule description like "каждый понедельник в 10:00 UTC"
+        Formatted schedule description like "раз в неделю в воскресенье в 15:00 UTC+3"
     """
     weekdays = [
         "понедельник",
@@ -22,8 +22,9 @@ def get_schedule_description() -> str:
         "субботу",
         "воскресенье",
     ]
-    day_name = weekdays[settings.WEEKLY_DUTY_DAY % 7]
-    return f"раз в неделю в {day_name} в {settings.WEEKLY_DUTY_HOUR:02d}:{settings.WEEKLY_DUTY_MINUTE:02d} МСК"
+    day_name = weekdays[settings.get_weekly_duty_day()]
+    weekly_time = settings.get_weekly_duty_time()
+    return f"раз в неделю в {day_name} в {weekly_time.hour:02d}:{weekly_time.minute:02d} UTC+3"
 
 
 def get_week_dates(year: int, week: int) -> tuple[datetime, datetime]:

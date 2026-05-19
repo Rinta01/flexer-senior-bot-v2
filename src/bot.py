@@ -1,6 +1,7 @@
 """Main bot application entry point."""
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -32,6 +33,16 @@ from src.utils.logger import setup_logging
 from src.services.duty_selector import select_and_announce_duty
 
 logger = setup_logging(__name__)
+
+SCHEDULER_TIMEZONE = timezone(timedelta(hours=3), name="UTC+3")
+
+
+def get_next_week_for_scheduler(now: datetime | None = None) -> tuple[int, int]:
+    """Return ISO year/week for the week after scheduler execution time."""
+    current_datetime = now or datetime.now(SCHEDULER_TIMEZONE)
+    target_date = current_datetime + timedelta(weeks=1)
+    target_year, target_week, _ = target_date.isocalendar()
+    return target_year, target_week
 
 
 class FlexerBot:
@@ -75,22 +86,24 @@ class FlexerBot:
         """Setup APScheduler for weekly duty selection."""
         logger.info("Setting up scheduler...")
 
-        self.scheduler = AsyncIOScheduler()
+        weekly_time = settings.get_weekly_duty_time()
+        self.scheduler = AsyncIOScheduler(timezone=SCHEDULER_TIMEZONE)
 
         # Add job for weekly duty announcement
         self.scheduler.add_job(  # pyright: ignore[reportUnknownMemberType]
             self.weekly_duty_job,
             trigger="cron",
-            day_of_week=settings.WEEKLY_DUTY_DAY,
-            hour=settings.WEEKLY_DUTY_HOUR,
-            minute=settings.WEEKLY_DUTY_MINUTE,
+            day_of_week=settings.get_weekly_duty_day(),
+            hour=weekly_time.hour,
+            minute=weekly_time.minute,
+            timezone=SCHEDULER_TIMEZONE,
             id="weekly_duty_selection",
         )
 
         logger.info(
             f"Scheduled weekly duty selection for "
-            f"{self.get_weekday_name(settings.WEEKLY_DUTY_DAY)} "
-            f"{settings.WEEKLY_DUTY_HOUR:02d}:{settings.WEEKLY_DUTY_MINUTE:02d}"
+            f"{self.get_weekday_name(settings.get_weekly_duty_day())} "
+            f"{weekly_time.hour:02d}:{weekly_time.minute:02d} UTC+3"
         )
 
     async def weekly_duty_job(self) -> None:
@@ -108,6 +121,7 @@ class FlexerBot:
 
                 logger.info(f"Processing {len(pools)} pools for weekly duty selection")
 
+                target_year, target_week = get_next_week_for_scheduler()
                 successful_selections = 0
                 skipped_selections = 0
                 failed_selections = 0
@@ -116,7 +130,8 @@ class FlexerBot:
                     try:
                         logger.info(
                             f"Auto-selecting duty for pool {pool.id} "
-                            f"(group {pool.group_id}, '{pool.group_title}')"
+                            f"(group {pool.group_id}, '{pool.group_title}') "
+                            f"for week {target_week}/{target_year}"
                         )
 
                         # Use shared duty selection logic
@@ -126,6 +141,8 @@ class FlexerBot:
                             pool_id=pool.id,
                             group_id=pool.group_id,
                             is_automatic=True,
+                            year=target_year,
+                            week_number=target_week,
                         )
 
                         if result["success"]:
@@ -237,11 +254,13 @@ class FlexerBot:
         await self.startup()
 
         try:
-            # Setup scheduler (currently disabled for manual duty selection)
-            # self.setup_scheduler()
-            # if self.scheduler:
-            #     self.scheduler.start()
-            logger.info("Automatic duty selection is disabled - use /pick command instead")
+            if settings.WEEKLY_DUTY_ENABLED:
+                self.setup_scheduler()
+                if self.scheduler:
+                    self.scheduler.start()
+                logger.info("Automatic duty selection scheduler is enabled")
+            else:
+                logger.info("Automatic duty selection scheduler is disabled")
 
             # Start polling
             await self.dp.start_polling(self.bot)  # pyright: ignore[reportUnknownMemberType]
