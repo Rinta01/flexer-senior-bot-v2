@@ -127,13 +127,15 @@ async def test_user_repository_update(
 
 
 @pytest.mark.asyncio
-async def test_duty_repository_filters_by_actual_iso_week(db_session: AsyncSession):
-    """Legacy rows with stale week_number should not block the real target week."""
+async def test_duty_repository_matches_legacy_row_by_stored_week_number(
+    db_session: AsyncSession,
+):
+    """Legacy rows with shifted assignment_date should still block their stored week."""
     pool = DutyPool(group_id=-100, group_title="Test Group")
     db_session.add(pool)
     await db_session.flush()
 
-    stale_week_row = DutyAssignment(
+    shifted_date_row = DutyAssignment(
         user_id=1,
         pool_id=pool.id,
         week_number=22,
@@ -147,13 +149,35 @@ async def test_duty_repository_filters_by_actual_iso_week(db_session: AsyncSessi
         assignment_date=datetime(2026, 5, 25),
         status=DutyStatus.PENDING,
     )
-    db_session.add_all([stale_week_row, real_week_row])
+    db_session.add_all([shifted_date_row, real_week_row])
     await db_session.commit()
 
     duty_repo = DutyRepository(db_session)
 
     week_22 = await duty_repo.get_duty_for_week(pool.id, 2026, 22)
-    week_23 = await duty_repo.get_duty_for_week(pool.id, 2026, 23)
 
-    assert week_22.user_id == 2
-    assert week_23 is None
+    assert week_22.user_id == 1
+
+
+@pytest.mark.asyncio
+async def test_duty_repository_matches_legacy_row_by_assignment_date(db_session: AsyncSession):
+    """Legacy rows with stale week_number should still block their assignment date week."""
+    pool = DutyPool(group_id=-101, group_title="Test Group")
+    db_session.add(pool)
+    await db_session.flush()
+
+    stale_week_row = DutyAssignment(
+        user_id=1,
+        pool_id=pool.id,
+        week_number=21,
+        assignment_date=datetime(2026, 5, 25),
+        status=DutyStatus.CONFIRMED,
+    )
+    db_session.add(stale_week_row)
+    await db_session.commit()
+
+    duty_repo = DutyRepository(db_session)
+
+    week_22 = await duty_repo.get_duty_for_week(pool.id, 2026, 22)
+
+    assert week_22.user_id == 1

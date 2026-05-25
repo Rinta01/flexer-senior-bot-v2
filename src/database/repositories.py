@@ -17,6 +17,20 @@ def _assignment_matches_iso_week(assignment_date: datetime, year: int, week_numb
     return iso_year == year and iso_week == week_number
 
 
+def _assignment_has_stored_week(assignment: DutyAssignment, year: int, week_number: int) -> bool:
+    """Check an assignment by the stored week fields, tolerating legacy date drift."""
+    return assignment.assignment_date.year == year and assignment.week_number == week_number
+
+
+def _assignment_matches_target_week(
+    assignment: DutyAssignment, year: int, week_number: int
+) -> bool:
+    """Check whether either stored week data or assignment date points at the target week."""
+    return _assignment_has_stored_week(assignment, year, week_number) or _assignment_matches_iso_week(
+        assignment.assignment_date, year, week_number
+    )
+
+
 class UserRepository:
     """Repository for TelegramUser operations."""
 
@@ -291,7 +305,6 @@ class DutyRepository:
             .where(
                 and_(
                     DutyAssignment.pool_id == pool_id,
-                    DutyAssignment.week_number == week_number,
                 )
             )
             .execution_options(populate_existing=True)
@@ -299,12 +312,15 @@ class DutyRepository:
         result = await self.session.execute(stmt)
         duties = result.scalars().all()
 
-        # Filter by actual ISO year/week from assignment_date.
-        # Some legacy rows may have stale week_number values from old date calculations.
+        # Filter by both stored week fields and actual ISO week from assignment_date.
+        # Legacy rows exist in both drift directions:
+        # - stale week_number with a correct assignment_date
+        # - correct week_number with a shifted assignment_date
+        # Either one should block creating another duty for the same intended week.
         duties_for_year = [
             duty
             for duty in duties
-            if _assignment_matches_iso_week(duty.assignment_date, year, week_number)
+            if _assignment_matches_target_week(duty, year, week_number)
         ]
 
         if not duties_for_year:
@@ -333,7 +349,6 @@ class DutyRepository:
         stmt = select(DutyAssignment).where(
             and_(
                 DutyAssignment.pool_id == pool_id,
-                DutyAssignment.week_number == week_number,
                 DutyAssignment.status == DutyStatus.PENDING,
             )
         )
@@ -344,8 +359,10 @@ class DutyRepository:
             duties = [
                 duty
                 for duty in duties
-                if _assignment_matches_iso_week(duty.assignment_date, year, week_number)
+                if _assignment_matches_target_week(duty, year, week_number)
             ]
+        else:
+            duties = [duty for duty in duties if duty.week_number == week_number]
 
         return duties
 
